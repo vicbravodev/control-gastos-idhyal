@@ -15,6 +15,27 @@ fi
 
 chmod -R ugo+rw /.composer
 
+# Bind-mounted deploys (e.g. Dokploy) often have no vendor/; the Sail image does not run composer during build.
+if [ ! -f /var/www/html/vendor/autoload.php ] && [ -f /var/www/html/composer.json ]; then
+    echo "Laravel: vendor/autoload.php missing; running composer install..."
+    cd /var/www/html || exit 1
+    if [ "${APP_ENV:-local}" = "production" ]; then
+        composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-ansi || exit 1
+    else
+        composer install --no-interaction --prefer-dist --no-ansi || exit 1
+    fi
+    chown -R sail:sail /var/www/html/vendor /var/www/html/bootstrap/cache 2>/dev/null || true
+fi
+
+# Vite output is gitignored; production needs a build before Inertia can load assets.
+if [ "${APP_ENV:-local}" = "production" ] && [ -f /var/www/html/package.json ] && [ -f /var/www/html/package-lock.json ] && [ ! -f /var/www/html/public/build/manifest.json ] && [ ! -f /var/www/html/public/build/.vite/manifest.json ]; then
+    echo "Laravel: public/build/manifest.json missing; running npm ci && npm run build..."
+    cd /var/www/html || exit 1
+    npm ci --no-audit --no-fund || exit 1
+    npm run build || exit 1
+    chown -R sail:sail /var/www/html/public/build 2>/dev/null || true
+fi
+
 if [ $# -gt 0 ]; then
     if [ "$SUPERVISOR_PHP_USER" = "root" ]; then
         exec "$@"

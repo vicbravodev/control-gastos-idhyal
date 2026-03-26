@@ -39,6 +39,15 @@ if [ "${APP_ENV:-local}" = "production" ] && [ -f /var/www/html/package.json ] &
     chown -R sail:sail /var/www/html/public/build 2>/dev/null || true
 fi
 
+# Ensure framework paths exist and are writable for `sail`. Missing dirs can trigger
+# "tempnam(): file created in the system's temporary directory" (E_NOTICE) when code expects a custom tmp path.
+if [ -f /var/www/html/artisan ]; then
+    cd /var/www/html || exit 1
+    mkdir -p storage/framework/sessions storage/framework/views storage/framework/cache storage/app/public bootstrap/cache
+    chmod -R ug+rwx storage bootstrap/cache 2>/dev/null || true
+    chown -R sail:sail storage bootstrap/cache 2>/dev/null || true
+fi
+
 if [ $# -gt 0 ]; then
     if [ "$SUPERVISOR_PHP_USER" = "root" ]; then
         exec "$@"

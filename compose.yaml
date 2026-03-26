@@ -14,6 +14,7 @@ services:
             - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
         environment:
             APP_ENV: '${APP_ENV:-local}'
+            TMPDIR: /tmp
             WWWUSER: '${WWWUSER:-1337}'
             LARAVEL_SAIL: 1
             XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'

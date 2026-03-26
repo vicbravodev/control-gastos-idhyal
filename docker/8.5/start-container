@@ -31,6 +31,9 @@ fi
 if [ "${APP_ENV:-local}" = "production" ] && [ -f /var/www/html/package.json ] && [ -f /var/www/html/package-lock.json ] && [ ! -f /var/www/html/public/build/manifest.json ] && [ ! -f /var/www/html/public/build/.vite/manifest.json ]; then
     echo "Laravel: public/build/manifest.json missing; running npm ci && npm run build..."
     cd /var/www/html || exit 1
+    echo "Laravel: generating Wayfinder TypeScript (resources/js/routes, actions)..."
+    php artisan wayfinder:generate --no-interaction || exit 1
+    chown -R sail:sail /var/www/html/resources/js/routes /var/www/html/resources/js/actions /var/www/html/resources/js/wayfinder 2>/dev/null || true
     npm ci --no-audit --no-fund || exit 1
     npm run build || exit 1
     chown -R sail:sail /var/www/html/public/build 2>/dev/null || true

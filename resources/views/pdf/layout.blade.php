@@ -40,6 +40,13 @@
             width: 50%;
         }
 
+        .header-logo-img {
+            display: block;
+            max-height: 52px;
+            width: auto;
+            margin-bottom: 6px;
+        }
+
         .header-meta {
             display: table-cell;
             vertical-align: middle;
@@ -295,11 +302,19 @@
     </style>
 </head>
 <body>
+    @php
+        $__idhyalLogoPath = public_path('images/logo-idhyal.png');
+        $__idhyalLogoData = is_readable($__idhyalLogoPath) ? base64_encode((string) file_get_contents($__idhyalLogoPath)) : '';
+    @endphp
     {{-- ── Header ── --}}
     <div class="header">
         <div class="header-inner">
             <div class="header-logo">
-                <p class="brand-name">IDHYAL</p>
+                @if ($__idhyalLogoData !== '')
+                    <img src="data:image/png;base64,{{ $__idhyalLogoData }}" alt="IDHYAL" class="header-logo-img" />
+                @else
+                    <p class="brand-name">IDHYAL</p>
+                @endif
                 <p class="brand-sub">Control de gastos</p>
             </div>
             <div class="header-meta">

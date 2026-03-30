@@ -14,6 +14,8 @@ services:
             - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
         environment:
             APP_ENV: '${APP_ENV:-local}'
+            # Force `npm run build` on start when public/build is missing (e.g. APP_ENV=local on server).
+            RUN_ASSET_BUILD: '${RUN_ASSET_BUILD:-0}'
             TMPDIR: /tmp
             WWWUSER: '${WWWUSER:-1337}'
             LARAVEL_SAIL: 1
@@ -35,8 +37,9 @@ services:
             - '${FORWARD_DB_PORT:-5432}:5432'
         environment:
             PGPASSWORD: '${DB_PASSWORD:-secret}'
-            POSTGRES_DB: '${DB_DATABASE}'
-            POSTGRES_USER: '${DB_USERNAME}'
+            # Superuser created only on first data volume init — must match Laravel DB_* in .env forever unless you recreate the volume.
+            POSTGRES_DB: '${DB_DATABASE:-laravel}'
+            POSTGRES_USER: '${DB_USERNAME:-postgres}'
             POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
         volumes:
             - 'sail-pgsql:/var/lib/postgresql'
@@ -49,9 +52,9 @@ services:
                 - pg_isready
                 - '-q'
                 - '-d'
-                - '${DB_DATABASE}'
+                - '${DB_DATABASE:-laravel}'
                 - '-U'
-                - '${DB_USERNAME}'
+                - '${DB_USERNAME:-postgres}'
             retries: 3
             timeout: 5s
     minio:

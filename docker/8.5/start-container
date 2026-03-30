@@ -27,14 +27,35 @@ if [ ! -f /var/www/html/vendor/autoload.php ] && [ -f /var/www/html/composer.jso
     chown -R sail:sail /var/www/html/vendor /var/www/html/bootstrap/cache 2>/dev/null || true
 fi
 
-# Vite output is gitignored; production needs a build before Inertia can load assets.
-if [ "${APP_ENV:-local}" = "production" ] && [ -f /var/www/html/package.json ] && [ -f /var/www/html/package-lock.json ] && [ ! -f /var/www/html/public/build/manifest.json ] && [ ! -f /var/www/html/public/build/.vite/manifest.json ]; then
-    echo "Laravel: public/build/manifest.json missing; running npm ci && npm run build..."
+# Vite output is gitignored; deployed environments need a build before Inertia can load assets.
+# Runs when manifest is missing and either:
+#   - APP_ENV is production or staging (case-insensitive), or
+#   - RUN_ASSET_BUILD is 1 / true (use on Dokploy if APP_ENV cannot be production/staging).
+vite_manifest_present() {
+    [ -f /var/www/html/public/build/manifest.json ] || [ -f /var/www/html/public/build/.vite/manifest.json ]
+}
+
+should_autobuild_vite=false
+app_env_normalized=$(printf '%s' "${APP_ENV:-local}" | tr '[:upper:]' '[:lower:]')
+case "$app_env_normalized" in
+    production|staging) should_autobuild_vite=true ;;
+esac
+if [ "${RUN_ASSET_BUILD:-0}" = "1" ] || [ "${RUN_ASSET_BUILD:-}" = "true" ]; then
+    should_autobuild_vite=true
+fi
+
+if [ "$should_autobuild_vite" = "true" ] && [ -f /var/www/html/package.json ] && ! vite_manifest_present; then
+    echo "Laravel: Vite manifest missing; running Wayfinder + npm install/build (APP_ENV=${APP_ENV:-local}, RUN_ASSET_BUILD=${RUN_ASSET_BUILD:-0})..."
     cd /var/www/html || exit 1
     echo "Laravel: generating Wayfinder TypeScript (resources/js/routes, actions)..."
     php artisan wayfinder:generate --no-interaction || exit 1
     chown -R sail:sail /var/www/html/resources/js/routes /var/www/html/resources/js/actions /var/www/html/resources/js/wayfinder 2>/dev/null || true
-    npm ci --no-audit --no-fund || exit 1
+    if [ -f /var/www/html/package-lock.json ]; then
+        npm ci --no-audit --no-fund || exit 1
+    else
+        echo "Laravel: package-lock.json not found; using npm install (commit a lockfile for reproducible builds)."
+        npm install --no-audit --no-fund || exit 1
+    fi
     npm run build || exit 1
     chown -R sail:sail /var/www/html/public/build 2>/dev/null || true
 fi

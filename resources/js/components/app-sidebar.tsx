@@ -214,7 +214,11 @@ export function AppSidebar() {
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
+                        <SidebarMenuButton
+                            size="lg"
+                            asChild
+                            tooltip="IDHYAL — Control de gastos"
+                        >
                             <Link href={dashboard()} prefetch>
                                 <AppLogo />
                             </Link>

@@ -36,15 +36,15 @@ export default function Dashboard() {
             <Head title="Dashboard" />
             <div className="flex flex-col gap-4 p-4 animate-fade-in">
                 <div className="flex items-start gap-4">
-                    <div className="hidden rounded-xl bg-primary/10 p-3 sm:block">
-                        <AppLogoIcon className="h-12 w-auto" />
+                    <div className="hidden shrink-0 rounded-xl border border-border/70 bg-white p-3 shadow-sm sm:block dark:border-white/15 dark:bg-white">
+                        <AppLogoIcon className="h-16 w-auto max-w-[5.5rem] sm:h-[4.5rem]" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                         <h1 className="text-2xl font-semibold tracking-tight">
                             Bienvenido, {firstName}
                         </h1>
                         <p className="text-sm text-muted-foreground">
-                            Panel de control de gastos y solicitudes de IDHYAL.
+                            Panel de control de gastos y solicitudes.
                         </p>
                     </div>
                 </div>

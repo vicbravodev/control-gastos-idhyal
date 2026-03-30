@@ -10,7 +10,14 @@ export default function AppLogoIcon({
         <img
             src="/images/logo-idhyal.png"
             alt="IDHYAL"
-            className={cn('object-contain', className)}
+            width={180}
+            height={180}
+            decoding="async"
+            draggable={false}
+            className={cn(
+                'object-contain [image-rendering:-webkit-optimize-contrast]',
+                className,
+            )}
             {...props}
         />
     );

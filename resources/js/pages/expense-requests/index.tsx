@@ -64,15 +64,24 @@ export default function ExpenseRequestsIndex({
                         title="Mis solicitudes de gasto"
                         description="Solicitudes que has creado en el sistema."
                     />
-                    <Button asChild>
-                        <Link
-                            href={ExpenseRequestController.create.url()}
-                            prefetch
-                        >
-                            <Plus className="mr-1.5 size-4" />
-                            Nueva solicitud
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild>
+                            <Link
+                                href={ExpenseRequestController.createReimbursement.url()}
+                            >
+                                Comprobación directa
+                            </Link>
+                        </Button>
+                        <Button asChild>
+                            <Link
+                                href={ExpenseRequestController.create.url()}
+                                prefetch
+                            >
+                                <Plus className="mr-1.5 size-4" />
+                                Nueva solicitud
+                            </Link>
+                        </Button>
+                    </div>
                 </div>
                 <Card>
                     <CardHeader>

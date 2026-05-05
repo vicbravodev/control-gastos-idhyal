@@ -83,5 +83,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('expense-requests/{expense_request}/payments/payment-evidence/{attachment}', [ExpenseRequestController::class, 'downloadPaymentEvidence'])
         ->name('expense-requests.payments.payment-evidence');
 
+    Route::get('expense-requests/reimbursements/create', [ExpenseRequestController::class, 'createReimbursement'])
+        ->name('expense-requests.reimbursements.create');
+    Route::post('expense-requests/reimbursements', [ExpenseRequestController::class, 'storeReimbursement'])
+        ->name('expense-requests.reimbursements.store');
+
     Route::resource('expense-requests', ExpenseRequestController::class)->except(['destroy']);
 });

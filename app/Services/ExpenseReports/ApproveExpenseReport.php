@@ -47,11 +47,11 @@ final class ApproveExpenseReport
         }
 
         $payment = $expenseRequest->payments()->orderBy('id')->first();
-        if ($payment === null) {
+        if ($payment === null && ! $expenseRequest->is_reimbursement) {
             throw new InvalidExpenseReportException(__('No hay pago asociado para calcular el balance.'));
         }
 
-        $basisCents = $payment->amount_cents;
+        $basisCents = $payment?->amount_cents ?? 0;
         $reportedCents = $report->reported_amount_cents;
         $differenceCents = $basisCents - $reportedCents;
 

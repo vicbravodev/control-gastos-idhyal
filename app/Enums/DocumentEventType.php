@@ -32,4 +32,13 @@ enum DocumentEventType: string
 
     /** Cierre contable del settlement y del ciclo de la solicitud. */
     case SettlementClosed = 'settlement_closed';
+
+    /** Solicitud de vacaciones expirada por inactividad de aprobadores. */
+    case VacationRequestExpired = 'vacation_request_expired';
+
+    /** Ajuste manual de saldo de vacaciones por superadmin (devolución, premio, corrección). */
+    case VacationEntitlementAdjusted = 'vacation_entitlement_adjusted';
+
+    /** Comprobación directa registrada sin solicitud previa (reembolso). */
+    case ExpenseRequestReimbursementCreated = 'expense_request_reimbursement_created';
 }

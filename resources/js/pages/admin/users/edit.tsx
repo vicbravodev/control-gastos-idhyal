@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import RegionStatesController from '@/actions/App/Http/Controllers/Admin/RegionStatesController';
 import StaffUserController from '@/actions/App/Http/Controllers/Admin/StaffUserController';
+import UserVacationAdjustmentController from '@/actions/App/Http/Controllers/Admin/UserVacationAdjustmentController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -346,6 +347,20 @@ export default function AdminUsersEdit({
                                         href={StaffUserController.index.url()}
                                     >
                                         Volver
+                                    </Link>
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    asChild
+                                    className="ms-auto"
+                                >
+                                    <Link
+                                        href={UserVacationAdjustmentController.index.url(
+                                            user.id,
+                                        )}
+                                    >
+                                        Ajustes de vacaciones
                                     </Link>
                                 </Button>
                             </div>

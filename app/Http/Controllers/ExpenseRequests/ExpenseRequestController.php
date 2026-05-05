@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequests\CancelExpenseRequestRequest;
 use App\Http\Requests\ExpenseRequests\StoreExpenseRequestRequest;
 use App\Http\Requests\ExpenseRequests\StoreExpenseRequestSubmissionAttachmentsRequest;
+use App\Http\Requests\ExpenseRequests\StoreReimbursementExpenseRequest;
 use App\Http\Requests\ExpenseRequests\UpdateExpenseRequestRequest;
 use App\Models\Attachment;
 use App\Models\DocumentEvent;
@@ -17,6 +18,8 @@ use App\Models\User;
 use App\Services\Approvals\Exceptions\InvalidApprovalStateException;
 use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
 use App\Services\Approvals\ExpenseRequestApprovalService;
+use App\Services\ExpenseReports\CreateReimbursement;
+use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
 use App\Services\ExpenseReports\ExpenseReportAttachmentWriter;
 use App\Services\ExpenseRequests\CancelExpenseRequest;
 use App\Services\ExpenseRequests\ExpenseRequestApprovalProgressResolver;
@@ -81,6 +84,47 @@ class ExpenseRequestController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ]);
+    }
+
+    public function createReimbursement(): InertiaResponse
+    {
+        $this->authorize('create', ExpenseRequest::class);
+
+        return Inertia::render('expense-requests/reimbursements/create', [
+            'expenseConcepts' => ExpenseConcept::query()
+                ->active()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name']),
+        ]);
+    }
+
+    public function storeReimbursement(
+        StoreReimbursementExpenseRequest $request,
+        CreateReimbursement $createReimbursement,
+    ): RedirectResponse {
+        try {
+            $expenseRequest = $createReimbursement->create(
+                $request->user(),
+                $request->integer('reported_amount_cents'),
+                $request->integer('expense_concept_id'),
+                $request->filled('concept_description')
+                    ? $request->string('concept_description')->toString()
+                    : null,
+                $request->documentType(),
+                $request->file('pdf'),
+                $request->file('xml'),
+            );
+        } catch (InvalidExpenseReportException $e) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['expense_report' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('expense-requests.show', $expenseRequest)
+            ->with('status', __('Comprobación directa enviada a contabilidad para revisión.'));
     }
 
     public function store(

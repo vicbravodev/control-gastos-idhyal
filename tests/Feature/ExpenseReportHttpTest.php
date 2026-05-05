@@ -106,6 +106,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 100_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ])
@@ -147,6 +148,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 95_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ])
@@ -182,6 +184,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 100_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ]);
@@ -226,6 +229,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 80_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ]);
@@ -259,6 +263,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 120_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ]);
@@ -289,6 +294,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 100_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ]);
@@ -328,6 +334,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($stranger)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 100_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ])
@@ -350,6 +357,7 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 100_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ])
@@ -373,11 +381,62 @@ class ExpenseReportHttpTest extends TestCase
         $this->actingAs($requester)
             ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 95_000,
+                'document_type' => 'factura',
                 'pdf' => $pdf,
                 'xml' => $xml,
             ])
             ->assertRedirect()
             ->assertSessionHasErrors('expense_report');
+    }
+
+    public function test_submit_recibo_only_requires_pdf(): void
+    {
+        $this->seedRoles();
+        Notification::fake();
+        Storage::fake('local');
+
+        [$requester, $expenseRequest] = $this->awaitingReportSetup(50_000);
+        $accounting = User::factory()->forRole('contabilidad')->create();
+        $expenseRequest->update(['status' => ExpenseRequestStatus::PendingPayment]);
+        $this->recordPaymentForRequest($expenseRequest, $accounting, 50_000);
+
+        $pdf = UploadedFile::fake()->create('recibo.pdf', 100, 'application/pdf');
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
+                'reported_amount_cents' => 50_000,
+                'document_type' => 'recibo',
+                'pdf' => $pdf,
+            ])
+            ->assertRedirect(route('expense-requests.show', $expenseRequest));
+
+        $expenseRequest->refresh();
+        $this->assertSame(ExpenseRequestStatus::ExpenseReportInReview, $expenseRequest->status);
+        $report = $expenseRequest->expenseReport->fresh();
+        $this->assertSame(ExpenseReportStatus::AccountingReview, $report->status);
+        $this->assertSame('recibo', $report->document_type->value);
+    }
+
+    public function test_submit_factura_without_xml_is_rejected(): void
+    {
+        $this->seedRoles();
+        Storage::fake('local');
+
+        [$requester, $expenseRequest] = $this->awaitingReportSetup();
+        $accounting = User::factory()->forRole('contabilidad')->create();
+        $expenseRequest->update(['status' => ExpenseRequestStatus::PendingPayment]);
+        $this->recordPaymentForRequest($expenseRequest, $accounting, 100_000);
+
+        $pdf = UploadedFile::fake()->create('c.pdf', 100, 'application/pdf');
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
+                'reported_amount_cents' => 100_000,
+                'document_type' => 'factura',
+                'pdf' => $pdf,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('xml');
     }
 
     public function test_draft_save_rejects_invalid_cfdi_xml(): void

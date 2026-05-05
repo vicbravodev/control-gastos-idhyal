@@ -24,6 +24,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'region_id',
     'state_id',
     'role_id',
+    'department_id',
     'hire_date',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -69,6 +70,14 @@ class User extends Authenticatable
     public function state(): BelongsTo
     {
         return $this->belongsTo(State::class);
+    }
+
+    /**
+     * @return BelongsTo<Department, $this>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     /**

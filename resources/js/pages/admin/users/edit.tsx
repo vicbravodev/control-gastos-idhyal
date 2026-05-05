@@ -26,6 +26,7 @@ const NONE = '__none__';
 type RegionOpt = { id: number; name: string; code: string | null };
 type RoleOpt = { id: number; slug: string; name: string };
 type StateOpt = { id: number; name: string; code: string | null };
+type DepartmentOpt = { id: number; name: string; code: string | null };
 
 type UserPayload = {
     id: number;
@@ -36,6 +37,7 @@ type UserPayload = {
     role_id: number | null;
     region_id: number | null;
     state_id: number | null;
+    department_id: number | null;
     hire_date: string | null;
 };
 
@@ -43,10 +45,12 @@ export default function AdminUsersEdit({
     user,
     roles,
     regions,
+    departments,
 }: {
     user: UserPayload;
     roles: RoleOpt[];
     regions: RegionOpt[];
+    departments: DepartmentOpt[];
 }) {
     const [stateOptions, setStateOptions] = useState<StateOpt[]>([]);
 
@@ -68,6 +72,8 @@ export default function AdminUsersEdit({
         role_id: user.role_id != null ? String(user.role_id) : NONE,
         region_id: user.region_id != null ? String(user.region_id) : NONE,
         state_id: user.state_id != null ? String(user.state_id) : NONE,
+        department_id:
+            user.department_id != null ? String(user.department_id) : NONE,
     });
 
     useEffect(() => {
@@ -113,6 +119,8 @@ export default function AdminUsersEdit({
             role_id: d.role_id === NONE ? null : Number(d.role_id),
             region_id: d.region_id === NONE ? null : Number(d.region_id),
             state_id: d.state_id === NONE ? null : Number(d.state_id),
+            department_id:
+                d.department_id === NONE ? null : Number(d.department_id),
             hire_date: d.hire_date === '' ? null : d.hire_date,
         }));
         patch(StaffUserController.update.url(user.id), {
@@ -296,6 +304,37 @@ export default function AdminUsersEdit({
                                         </SelectContent>
                                     </Select>
                                     <InputError message={errors.state_id} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label>Departamento</Label>
+                                    <Select
+                                        value={data.department_id}
+                                        onValueChange={(v) =>
+                                            setData('department_id', v)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Sin departamento" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>
+                                                Sin departamento
+                                            </SelectItem>
+                                            {departments.map((d) => (
+                                                <SelectItem
+                                                    key={d.id}
+                                                    value={String(d.id)}
+                                                >
+                                                    {d.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError
+                                        message={errors.department_id}
+                                    />
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-3 pt-2">

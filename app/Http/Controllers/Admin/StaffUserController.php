@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Users\StoreStaffUserRequest;
 use App\Http\Requests\Admin\Users\UpdateStaffUserRequest;
+use App\Models\Department;
 use App\Models\Region;
 use App\Models\Role;
 use App\Models\State;
@@ -22,9 +23,10 @@ class StaffUserController extends Controller
         $this->authorize('manageStaffDirectory', User::class);
 
         $users = User::query()
-            ->with(['role:id,slug,name', 'region:id,name,code', 'state:id,name,code'])
+            ->with(['role:id,slug,name', 'region:id,name,code', 'state:id,name,code', 'department:id,name,code'])
             ->when($request->query('search'), fn ($q, $search) => $q->where(fn ($sub) => $sub->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
             ->when($request->query('role'), fn ($q, $roleId) => $q->where('role_id', $roleId))
+            ->when($request->query('department'), fn ($q, $departmentId) => $q->where('department_id', $departmentId))
             ->orderBy('name')
             ->get()
             ->map(fn (User $u): array => $this->presentUserRow($u));
@@ -34,8 +36,10 @@ class StaffUserController extends Controller
             'filters' => [
                 'search' => $request->query('search', ''),
                 'role' => $request->query('role', ''),
+                'department' => $request->query('department', ''),
             ],
             'roles' => Role::query()->orderBy('name')->get(['id', 'name'])->map(fn ($r) => ['value' => (string) $r->id, 'label' => $r->name]),
+            'departments' => Department::query()->where('is_active', true)->orderBy('position')->orderBy('name')->get(['id', 'name'])->map(fn ($d) => ['value' => (string) $d->id, 'label' => $d->name]),
         ]);
     }
 
@@ -61,6 +65,7 @@ class StaffUserController extends Controller
             'role_id' => $request->filled('role_id') ? $request->integer('role_id') : null,
             'region_id' => $request->filled('region_id') ? $request->integer('region_id') : null,
             'state_id' => $request->filled('state_id') ? $request->integer('state_id') : null,
+            'department_id' => $request->filled('department_id') ? $request->integer('department_id') : null,
             'hire_date' => $request->date('hire_date'),
         ]);
 
@@ -73,7 +78,7 @@ class StaffUserController extends Controller
     {
         $this->authorize('manageStaffDirectory', User::class);
 
-        $user->load(['role:id,slug,name', 'region:id,name,code', 'state:id,name,code,region_id']);
+        $user->load(['role:id,slug,name', 'region:id,name,code', 'state:id,name,code,region_id', 'department:id,name,code']);
 
         return Inertia::render('admin/users/edit', array_merge($this->formShared(), [
             'user' => $this->presentUserRow($user),
@@ -94,6 +99,7 @@ class StaffUserController extends Controller
             'role_id' => $request->filled('role_id') ? $request->integer('role_id') : null,
             'region_id' => $request->filled('region_id') ? $request->integer('region_id') : null,
             'state_id' => $request->filled('state_id') ? $request->integer('state_id') : null,
+            'department_id' => $request->filled('department_id') ? $request->integer('department_id') : null,
             'hire_date' => $request->filled('hire_date') ? $request->date('hire_date') : null,
         ]);
 
@@ -110,6 +116,7 @@ class StaffUserController extends Controller
         return [
             'roles' => Role::query()->orderBy('name')->get(['id', 'slug', 'name']),
             'regions' => Region::query()->orderBy('name')->get(['id', 'name', 'code']),
+            'departments' => Department::query()->where('is_active', true)->orderBy('position')->orderBy('name')->get(['id', 'name', 'code']),
         ];
     }
 
@@ -127,6 +134,7 @@ class StaffUserController extends Controller
             'role_id' => $u->role_id,
             'region_id' => $u->region_id,
             'state_id' => $u->state_id,
+            'department_id' => $u->department_id,
             'role' => $u->role !== null
                 ? $u->role->only(['id', 'slug', 'name'])
                 : null,
@@ -135,6 +143,9 @@ class StaffUserController extends Controller
                 : null,
             'state' => $u->state !== null
                 ? $u->state->only(['id', 'name', 'code', 'region_id'])
+                : null,
+            'department' => $u->department !== null
+                ? $u->department->only(['id', 'name', 'code'])
                 : null,
             'hire_date' => $u->hire_date?->toDateString(),
         ];

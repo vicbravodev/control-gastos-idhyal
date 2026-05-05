@@ -2,6 +2,7 @@
 
 namespace App\Services\ExpenseReports;
 
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\ExpenseReport;
@@ -27,6 +28,7 @@ final class SaveExpenseReportDraft
         int $reportedAmountCents,
         ?UploadedFile $pdf,
         ?UploadedFile $xml,
+        ?ExpenseReportDocumentType $documentType = null,
     ): ExpenseReport {
         if ($expenseRequest->user_id !== $actor->id) {
             throw new InvalidExpenseReportException(__('No puedes editar esta comprobación.'));
@@ -48,18 +50,26 @@ final class SaveExpenseReportDraft
             throw new InvalidExpenseReportException(__('La comprobación no puede editarse en su estado actual.'));
         }
 
-        return DB::transaction(function () use ($expenseRequest, $actor, $reportedAmountCents, $pdf, $xml, $report): ExpenseReport {
+        return DB::transaction(function () use ($expenseRequest, $actor, $reportedAmountCents, $pdf, $xml, $documentType, $report): ExpenseReport {
+            $resolvedType = $documentType ?? $report?->document_type ?? ExpenseReportDocumentType::Factura;
+
             if ($report === null) {
                 $report = ExpenseReport::query()->create([
                     'expense_request_id' => $expenseRequest->id,
                     'status' => ExpenseReportStatus::Draft,
                     'reported_amount_cents' => $reportedAmountCents,
+                    'document_type' => $resolvedType,
                     'submitted_at' => null,
                 ]);
             } else {
                 $report->update([
                     'reported_amount_cents' => $reportedAmountCents,
+                    'document_type' => $resolvedType,
                 ]);
+            }
+
+            if ($resolvedType === ExpenseReportDocumentType::Recibo) {
+                $this->attachments->removeKind($report->fresh(), 'xml');
             }
 
             if ($pdf !== null) {

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Enums\RoleSlug;
 use App\Models\Budget;
+use App\Models\Department;
 use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Models\Payment;
@@ -90,6 +91,7 @@ class AppServiceProvider extends ServiceProvider
             'state' => State::class,
             'user' => User::class,
             'role' => Role::class,
+            'department' => Department::class,
             'expense_request' => ExpenseRequest::class,
             'expense_report' => ExpenseReport::class,
             'payment' => Payment::class,

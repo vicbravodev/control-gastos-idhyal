@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use Database\Factories\ExpenseReportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,6 +23,7 @@ class ExpenseReport extends Model
         'expense_request_id',
         'status',
         'reported_amount_cents',
+        'document_type',
         'submitted_at',
     ];
 
@@ -32,6 +34,7 @@ class ExpenseReport extends Model
     {
         return [
             'status' => ExpenseReportStatus::class,
+            'document_type' => ExpenseReportDocumentType::class,
             'submitted_at' => 'datetime',
         ];
     }

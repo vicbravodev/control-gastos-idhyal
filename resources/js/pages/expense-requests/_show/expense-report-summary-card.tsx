@@ -9,7 +9,8 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { formatCentsMx } from '@/lib/money';
-import { DataRow, type ExpenseReportSummary } from './types';
+import { DataRow  } from './types';
+import type {ExpenseReportSummary} from './types';
 
 export default function ExpenseReportSummaryCard({
     expenseRequestId,
@@ -32,6 +33,9 @@ export default function ExpenseReportSummaryCard({
                     <DataRow label="Estado">
                         <StatusBadge status={report.status} />
                     </DataRow>
+                    <DataRow label="Tipo de documento">
+                        {report.document_type_label}
+                    </DataRow>
                     <DataRow label="Monto comprobado">
                         <span className="tabular-nums">
                             {formatCentsMx(report.reported_amount_cents)}
@@ -42,8 +46,14 @@ export default function ExpenseReportSummaryCard({
                             {report.submitted_at}
                         </DataRow>
                     )}
-                    <DataRow label="PDF y XML">
-                        {report.has_pdf_and_xml ? 'Sí' : 'No (o incompleto)'}
+                    <DataRow label="Documentos">
+                        {report.document_type === 'factura'
+                            ? report.has_pdf_and_xml
+                                ? 'PDF y XML completos'
+                                : 'Faltan PDF o XML'
+                            : report.verification_pdf_attachment_id != null
+                              ? 'PDF cargado'
+                              : 'Falta PDF'}
                     </DataRow>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">

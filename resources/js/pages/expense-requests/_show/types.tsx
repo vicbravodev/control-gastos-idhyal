@@ -15,6 +15,8 @@ export type ExpenseReportSummary = {
     id: number;
     status: string;
     reported_amount_cents: number;
+    document_type: 'factura' | 'recibo';
+    document_type_label: string;
     submitted_at: string | null;
     has_pdf_and_xml: boolean;
     verification_pdf_attachment_id?: number | null;
@@ -91,6 +93,7 @@ export function formatDate(iso: string | null): string {
     if (!iso) {
         return '—';
     }
+
     try {
         return new Date(iso).toLocaleString('es-MX', {
             dateStyle: 'short',

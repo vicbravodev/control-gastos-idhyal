@@ -27,6 +27,7 @@ type UserRow = {
     role: { id: number; slug: string; name: string } | null;
     region: { id: number; name: string; code: string | null } | null;
     state: { id: number; name: string; code: string | null } | null;
+    department: { id: number; name: string; code: string | null } | null;
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -38,10 +39,12 @@ export default function AdminUsersIndex({
     users,
     filters,
     roles,
+    departments,
 }: {
     users: UserRow[];
     filters: Record<string, string>;
     roles: { value: string; label: string }[];
+    departments: { value: string; label: string }[];
 }) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -74,6 +77,12 @@ export default function AdminUsersIndex({
                                     options: roles,
                                     allLabel: 'Todos los roles',
                                 },
+                                {
+                                    key: 'department',
+                                    label: 'Departamento',
+                                    options: departments,
+                                    allLabel: 'Todos los departamentos',
+                                },
                             ]}
                         />
                     </div>
@@ -92,6 +101,7 @@ export default function AdminUsersIndex({
                                             <TableHead>Nombre</TableHead>
                                             <TableHead>Correo</TableHead>
                                             <TableHead>Rol</TableHead>
+                                            <TableHead>Departamento</TableHead>
                                             <TableHead>Región</TableHead>
                                             <TableHead>Estado</TableHead>
                                             <TableHead className="w-[80px] text-right">
@@ -110,6 +120,9 @@ export default function AdminUsersIndex({
                                                 </TableCell>
                                                 <TableCell className="text-sm">
                                                     {u.role?.name ?? '—'}
+                                                </TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">
+                                                    {u.department?.name ?? '—'}
                                                 </TableCell>
                                                 <TableCell className="text-sm text-muted-foreground">
                                                     {u.region?.name ??

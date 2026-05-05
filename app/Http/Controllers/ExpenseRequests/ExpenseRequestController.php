@@ -563,6 +563,8 @@ class ExpenseRequestController extends Controller
             'id' => $report->id,
             'status' => $report->status->value,
             'reported_amount_cents' => $report->reported_amount_cents,
+            'document_type' => $report->document_type->value,
+            'document_type_label' => $report->document_type->label(),
             'submitted_at' => $report->submitted_at?->toIso8601String(),
             'has_pdf_and_xml' => $writer->hasPdfAndXml($report),
             'verification_pdf_attachment_id' => $writer->findVerificationAttachment($report, 'pdf')?->id,

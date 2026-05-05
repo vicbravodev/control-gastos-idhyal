@@ -3,6 +3,7 @@
 namespace App\Services\ExpenseReports;
 
 use App\Enums\DocumentEventType;
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\DocumentEvent;
@@ -30,7 +31,8 @@ final class SubmitExpenseReportForReview
         User $actor,
         int $reportedAmountCents,
         UploadedFile $pdf,
-        UploadedFile $xml,
+        ?UploadedFile $xml,
+        ExpenseReportDocumentType $documentType,
     ): ExpenseReport {
         if ($expenseRequest->user_id !== $actor->id) {
             throw new InvalidExpenseReportException(__('No puedes enviar esta comprobación.'));
@@ -47,6 +49,10 @@ final class SubmitExpenseReportForReview
             throw new InvalidExpenseReportException(__('La solicitud no tiene pago registrado.'));
         }
 
+        if ($documentType === ExpenseReportDocumentType::Factura && $xml === null) {
+            throw new InvalidExpenseReportException(__('Debes adjuntar el XML del CFDI cuando la comprobación es una factura.'));
+        }
+
         $report = $expenseRequest->expenseReport;
 
         if ($report !== null && ! in_array($report->status, [
@@ -56,26 +62,35 @@ final class SubmitExpenseReportForReview
             throw new InvalidExpenseReportException(__('La comprobación ya fue enviada o cerrada.'));
         }
 
-        $this->cfdiValidator->validate($xml, $reportedAmountCents);
+        if ($xml !== null) {
+            $this->cfdiValidator->validate($xml, $reportedAmountCents);
+        }
 
-        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $reportedAmountCents, $pdf, $xml, $report): ExpenseReport {
+        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $reportedAmountCents, $pdf, $xml, $documentType, $report): ExpenseReport {
             if ($report === null) {
                 $report = ExpenseReport::query()->create([
                     'expense_request_id' => $expenseRequest->id,
                     'status' => ExpenseReportStatus::Draft,
                     'reported_amount_cents' => $reportedAmountCents,
+                    'document_type' => $documentType,
                     'submitted_at' => null,
                 ]);
             } else {
                 $report->update([
                     'reported_amount_cents' => $reportedAmountCents,
+                    'document_type' => $documentType,
                 ]);
             }
 
             $report = $report->fresh();
             $this->attachments->storeKind($report, $actor, $pdf, 'pdf');
-            $report = $report->fresh();
-            $this->attachments->storeKind($report, $actor, $xml, 'xml');
+
+            if ($documentType === ExpenseReportDocumentType::Recibo) {
+                $this->attachments->removeKind($report->fresh(), 'xml');
+            } elseif ($xml !== null) {
+                $report = $report->fresh();
+                $this->attachments->storeKind($report, $actor, $xml, 'xml');
+            }
 
             $report->update([
                 'status' => ExpenseReportStatus::AccountingReview,
@@ -95,6 +110,7 @@ final class SubmitExpenseReportForReview
                 'metadata' => [
                     'expense_report_id' => $report->id,
                     'reported_amount_cents' => $reportedAmountCents,
+                    'document_type' => $documentType->value,
                 ],
             ]);
 

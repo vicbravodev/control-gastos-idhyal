@@ -36,6 +36,7 @@ import type { BreadcrumbItem } from '@/types';
 import ActionRequiredCard from './_show/action-required-card';
 import DocumentTimelineCard from './_show/document-timeline-card';
 import DocumentsSection from './_show/documents-section';
+import ExpenseReportCfdiCard from './_show/expense-report-cfdi-card';
 import ProgressStepper from './_show/progress-stepper';
 import type { Detail } from './_show/types';
 
@@ -346,6 +347,13 @@ export default function ExpenseRequestsShow({
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* ── CFDI metadata (cuando la comprobación es factura) ── */}
+                {expenseRequest.expense_report?.cfdi && (
+                    <ExpenseReportCfdiCard
+                        cfdi={expenseRequest.expense_report.cfdi}
+                    />
+                )}
 
                 {/* ── Documents & downloads ──────────────── */}
                 <Card>

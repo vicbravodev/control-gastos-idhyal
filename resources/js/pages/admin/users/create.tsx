@@ -26,6 +26,7 @@ const NONE = '__none__';
 type RegionOpt = { id: number; name: string; code: string | null };
 type RoleOpt = { id: number; slug: string; name: string };
 type StateOpt = { id: number; name: string; code: string | null };
+type DepartmentOpt = { id: number; name: string; code: string | null };
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
@@ -36,9 +37,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function AdminUsersCreate({
     roles,
     regions,
+    departments,
 }: {
     roles: RoleOpt[];
     regions: RegionOpt[];
+    departments: DepartmentOpt[];
 }) {
     const [stateOptions, setStateOptions] = useState<StateOpt[]>([]);
 
@@ -53,11 +56,13 @@ export default function AdminUsersCreate({
         role_id: NONE,
         region_id: NONE,
         state_id: NONE,
+        department_id: NONE,
     });
 
     useEffect(() => {
         if (data.region_id === NONE) {
             setStateOptions([]);
+
             return;
         }
 
@@ -99,6 +104,8 @@ export default function AdminUsersCreate({
             role_id: d.role_id === NONE ? null : Number(d.role_id),
             region_id: d.region_id === NONE ? null : Number(d.region_id),
             state_id: d.state_id === NONE ? null : Number(d.state_id),
+            department_id:
+                d.department_id === NONE ? null : Number(d.department_id),
             hire_date: d.hire_date === '' ? null : d.hire_date,
         }));
         post(StaffUserController.store.url(), { preserveScroll: true });
@@ -317,6 +324,37 @@ export default function AdminUsersCreate({
                                         </SelectContent>
                                     </Select>
                                     <InputError message={errors.state_id} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label>Departamento</Label>
+                                    <Select
+                                        value={data.department_id}
+                                        onValueChange={(v) =>
+                                            setData('department_id', v)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Sin departamento" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>
+                                                Sin departamento
+                                            </SelectItem>
+                                            {departments.map((d) => (
+                                                <SelectItem
+                                                    key={d.id}
+                                                    value={String(d.id)}
+                                                >
+                                                    {d.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError
+                                        message={errors.department_id}
+                                    />
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-3 pt-2">

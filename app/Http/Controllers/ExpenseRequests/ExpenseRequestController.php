@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequests\CancelExpenseRequestRequest;
 use App\Http\Requests\ExpenseRequests\StoreExpenseRequestRequest;
 use App\Http\Requests\ExpenseRequests\StoreExpenseRequestSubmissionAttachmentsRequest;
+use App\Http\Requests\ExpenseRequests\StoreReimbursementExpenseRequest;
 use App\Http\Requests\ExpenseRequests\UpdateExpenseRequestRequest;
 use App\Models\Attachment;
 use App\Models\DocumentEvent;
@@ -17,6 +18,8 @@ use App\Models\User;
 use App\Services\Approvals\Exceptions\InvalidApprovalStateException;
 use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
 use App\Services\Approvals\ExpenseRequestApprovalService;
+use App\Services\ExpenseReports\CreateReimbursement;
+use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
 use App\Services\ExpenseReports\ExpenseReportAttachmentWriter;
 use App\Services\ExpenseRequests\CancelExpenseRequest;
 use App\Services\ExpenseRequests\ExpenseRequestApprovalProgressResolver;
@@ -81,6 +84,47 @@ class ExpenseRequestController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ]);
+    }
+
+    public function createReimbursement(): InertiaResponse
+    {
+        $this->authorize('create', ExpenseRequest::class);
+
+        return Inertia::render('expense-requests/reimbursements/create', [
+            'expenseConcepts' => ExpenseConcept::query()
+                ->active()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(['id', 'name']),
+        ]);
+    }
+
+    public function storeReimbursement(
+        StoreReimbursementExpenseRequest $request,
+        CreateReimbursement $createReimbursement,
+    ): RedirectResponse {
+        try {
+            $expenseRequest = $createReimbursement->create(
+                $request->user(),
+                $request->integer('reported_amount_cents'),
+                $request->integer('expense_concept_id'),
+                $request->filled('concept_description')
+                    ? $request->string('concept_description')->toString()
+                    : null,
+                $request->documentType(),
+                $request->file('pdf'),
+                $request->file('xml'),
+            );
+        } catch (InvalidExpenseReportException $e) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['expense_report' => $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('expense-requests.show', $expenseRequest)
+            ->with('status', __('Comprobación directa enviada a contabilidad para revisión.'));
     }
 
     public function store(
@@ -563,10 +607,26 @@ class ExpenseRequestController extends Controller
             'id' => $report->id,
             'status' => $report->status->value,
             'reported_amount_cents' => $report->reported_amount_cents,
+            'document_type' => $report->document_type->value,
+            'document_type_label' => $report->document_type->label(),
             'submitted_at' => $report->submitted_at?->toIso8601String(),
             'has_pdf_and_xml' => $writer->hasPdfAndXml($report),
             'verification_pdf_attachment_id' => $writer->findVerificationAttachment($report, 'pdf')?->id,
             'verification_xml_attachment_id' => $writer->findVerificationAttachment($report, 'xml')?->id,
+            'cfdi' => $report->cfdi_uuid === null ? null : [
+                'uuid' => $report->cfdi_uuid,
+                'emisor_rfc' => $report->cfdi_emisor_rfc,
+                'emisor_nombre' => $report->cfdi_emisor_nombre,
+                'receptor_rfc' => $report->cfdi_receptor_rfc,
+                'receptor_nombre' => $report->cfdi_receptor_nombre,
+                'fecha' => $report->cfdi_fecha?->toIso8601String(),
+                'serie' => $report->cfdi_serie,
+                'folio' => $report->cfdi_folio,
+                'forma_pago' => $report->cfdi_forma_pago,
+                'metodo_pago' => $report->cfdi_metodo_pago,
+                'uso_cfdi' => $report->cfdi_uso_cfdi,
+                'conceptos' => $report->cfdi_conceptos ?? [],
+            ],
         ];
     }
 

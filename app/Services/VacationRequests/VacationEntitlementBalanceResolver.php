@@ -5,6 +5,7 @@ namespace App\Services\VacationRequests;
 use App\Enums\VacationRequestStatus;
 use App\Models\User;
 use App\Models\VacationEntitlement;
+use App\Models\VacationEntitlementAdjustment;
 use App\Models\VacationRequest;
 use App\Models\VacationRule;
 use Carbon\CarbonImmutable;
@@ -69,7 +70,8 @@ class VacationEntitlementBalanceResolver
         $entitlement = $this->ensureEntitlement($user, $calendarYear, $rule);
         $daysAllocated = $entitlement->days_allocated;
         $consumed = $this->consumedDaysForUserInYear($user, $calendarYear);
-        $remaining = max(0, $daysAllocated - $consumed);
+        $adjustment = $this->adjustmentDaysForUserInYear($user, $calendarYear);
+        $remaining = max(0, $daysAllocated + $adjustment - $consumed);
 
         return [
             'has_hire_date' => true,
@@ -83,11 +85,20 @@ class VacationEntitlementBalanceResolver
             ],
             'days_allocated' => $daysAllocated,
             'days_consumed' => $consumed,
+            'days_adjustment' => $adjustment,
             'days_remaining' => $remaining,
             'pending_first_year' => false,
             'first_anniversary_on' => null,
             'days_until_anniversary' => null,
         ];
+    }
+
+    public function adjustmentDaysForUserInYear(User $user, int $calendarYear): int
+    {
+        return (int) VacationEntitlementAdjustment::query()
+            ->where('user_id', $user->id)
+            ->where('calendar_year', $calendarYear)
+            ->sum('days');
     }
 
     public function resolveRule(float $serviceYears): ?VacationRule
@@ -137,6 +148,7 @@ class VacationEntitlementBalanceResolver
             'rule' => null,
             'days_allocated' => 0,
             'days_consumed' => 0,
+            'days_adjustment' => 0,
             'days_remaining' => 0,
             'pending_first_year' => false,
             'first_anniversary_on' => null,
@@ -168,6 +180,7 @@ class VacationEntitlementBalanceResolver
             'rule' => null,
             'days_allocated' => 0,
             'days_consumed' => $this->consumedDaysForUserInYear($user, $calendarYear),
+            'days_adjustment' => $this->adjustmentDaysForUserInYear($user, $calendarYear),
             'days_remaining' => 0,
             'pending_first_year' => true,
             'first_anniversary_on' => $firstAnniversary->toDateString(),

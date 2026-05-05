@@ -29,6 +29,7 @@ class ExpenseRequest extends Model
         'expense_concept_id',
         'concept_description',
         'delivery_method',
+        'is_reimbursement',
     ];
 
     /**
@@ -39,6 +40,7 @@ class ExpenseRequest extends Model
         return [
             'status' => ExpenseRequestStatus::class,
             'delivery_method' => DeliveryMethod::class,
+            'is_reimbursement' => 'boolean',
         ];
     }
 

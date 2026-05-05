@@ -21,6 +21,8 @@ enum VacationRequestStatus: string
 
     case Completed = 'completed';
 
+    case Expired = 'expired';
+
     public function label(): string
     {
         return match ($this) {
@@ -31,6 +33,7 @@ enum VacationRequestStatus: string
             self::Cancelled => 'Cancelada',
             self::Approved => 'Aprobada',
             self::Completed => 'Completada',
+            self::Expired => 'Expirada por inactividad',
         };
     }
 }

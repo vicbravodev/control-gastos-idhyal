@@ -11,14 +11,41 @@ export type PaymentSummary = {
     evidence_attachment_id?: number | null;
 };
 
+export type CfdiConcepto = {
+    descripcion: string | null;
+    cantidad: number | null;
+    unidad: string | null;
+    valor_unitario: number | null;
+    importe: number | null;
+    clave_prod_serv: string | null;
+};
+
+export type CfdiSummary = {
+    uuid: string;
+    emisor_rfc: string | null;
+    emisor_nombre: string | null;
+    receptor_rfc: string | null;
+    receptor_nombre: string | null;
+    fecha: string | null;
+    serie: string | null;
+    folio: string | null;
+    forma_pago: string | null;
+    metodo_pago: string | null;
+    uso_cfdi: string | null;
+    conceptos: CfdiConcepto[];
+};
+
 export type ExpenseReportSummary = {
     id: number;
     status: string;
     reported_amount_cents: number;
+    document_type: 'factura' | 'recibo';
+    document_type_label: string;
     submitted_at: string | null;
     has_pdf_and_xml: boolean;
     verification_pdf_attachment_id?: number | null;
     verification_xml_attachment_id?: number | null;
+    cfdi: CfdiSummary | null;
 };
 
 export type SettlementSummary = {
@@ -91,6 +118,7 @@ export function formatDate(iso: string | null): string {
     if (!iso) {
         return '—';
     }
+
     try {
         return new Date(iso).toLocaleString('es-MX', {
             dateStyle: 'short',

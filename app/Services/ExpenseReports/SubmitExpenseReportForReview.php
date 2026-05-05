@@ -3,6 +3,7 @@
 namespace App\Services\ExpenseReports;
 
 use App\Enums\DocumentEventType;
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\DocumentEvent;
@@ -19,7 +20,7 @@ final class SubmitExpenseReportForReview
     public function __construct(
         private readonly ExpenseReportAttachmentWriter $attachments,
         private readonly ExpenseRequestNotificationDispatcher $notifications,
-        private readonly CfdiComprobanteValidator $cfdiValidator,
+        private readonly CfdiComprobanteIngestor $cfdiIngestor,
     ) {}
 
     /**
@@ -30,7 +31,8 @@ final class SubmitExpenseReportForReview
         User $actor,
         int $reportedAmountCents,
         UploadedFile $pdf,
-        UploadedFile $xml,
+        ?UploadedFile $xml,
+        ExpenseReportDocumentType $documentType,
     ): ExpenseReport {
         if ($expenseRequest->user_id !== $actor->id) {
             throw new InvalidExpenseReportException(__('No puedes enviar esta comprobación.'));
@@ -47,6 +49,10 @@ final class SubmitExpenseReportForReview
             throw new InvalidExpenseReportException(__('La solicitud no tiene pago registrado.'));
         }
 
+        if ($documentType === ExpenseReportDocumentType::Factura && $xml === null) {
+            throw new InvalidExpenseReportException(__('Debes adjuntar el XML del CFDI cuando la comprobación es una factura.'));
+        }
+
         $report = $expenseRequest->expenseReport;
 
         if ($report !== null && ! in_array($report->status, [
@@ -56,26 +62,57 @@ final class SubmitExpenseReportForReview
             throw new InvalidExpenseReportException(__('La comprobación ya fue enviada o cerrada.'));
         }
 
-        $this->cfdiValidator->validate($xml, $reportedAmountCents);
+        $resolvedAmount = $reportedAmountCents;
+        $cfdiAttributes = [
+            'cfdi_uuid' => null,
+            'cfdi_emisor_rfc' => null,
+            'cfdi_emisor_nombre' => null,
+            'cfdi_receptor_rfc' => null,
+            'cfdi_receptor_nombre' => null,
+            'cfdi_fecha' => null,
+            'cfdi_serie' => null,
+            'cfdi_folio' => null,
+            'cfdi_forma_pago' => null,
+            'cfdi_metodo_pago' => null,
+            'cfdi_uso_cfdi' => null,
+            'cfdi_conceptos' => null,
+        ];
 
-        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $reportedAmountCents, $pdf, $xml, $report): ExpenseReport {
+        if ($xml !== null) {
+            $ingestion = $this->cfdiIngestor->ingest($xml, $reportedAmountCents, $report);
+            $resolvedAmount = $ingestion->resolvedAmountCents;
+            $cfdiAttributes = $this->cfdiIngestor->metadataAttributes($ingestion->cfdi);
+        }
+
+        if ($resolvedAmount <= 0) {
+            throw new InvalidExpenseReportException(__('El monto comprobado es inválido.'));
+        }
+
+        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $resolvedAmount, $pdf, $xml, $documentType, $report, $cfdiAttributes): ExpenseReport {
+            $payload = array_merge([
+                'reported_amount_cents' => $resolvedAmount,
+                'document_type' => $documentType,
+            ], $cfdiAttributes);
+
             if ($report === null) {
-                $report = ExpenseReport::query()->create([
+                $report = ExpenseReport::query()->create(array_merge([
                     'expense_request_id' => $expenseRequest->id,
                     'status' => ExpenseReportStatus::Draft,
-                    'reported_amount_cents' => $reportedAmountCents,
                     'submitted_at' => null,
-                ]);
+                ], $payload));
             } else {
-                $report->update([
-                    'reported_amount_cents' => $reportedAmountCents,
-                ]);
+                $report->update($payload);
             }
 
             $report = $report->fresh();
             $this->attachments->storeKind($report, $actor, $pdf, 'pdf');
-            $report = $report->fresh();
-            $this->attachments->storeKind($report, $actor, $xml, 'xml');
+
+            if ($documentType === ExpenseReportDocumentType::Recibo) {
+                $this->attachments->removeKind($report->fresh(), 'xml');
+            } elseif ($xml !== null) {
+                $report = $report->fresh();
+                $this->attachments->storeKind($report, $actor, $xml, 'xml');
+            }
 
             $report->update([
                 'status' => ExpenseReportStatus::AccountingReview,
@@ -94,7 +131,9 @@ final class SubmitExpenseReportForReview
                 'note' => '-',
                 'metadata' => [
                     'expense_report_id' => $report->id,
-                    'reported_amount_cents' => $reportedAmountCents,
+                    'reported_amount_cents' => $resolvedAmount,
+                    'document_type' => $documentType->value,
+                    'cfdi_uuid' => $cfdiAttributes['cfdi_uuid'] ?? null,
                 ],
             ]);
 

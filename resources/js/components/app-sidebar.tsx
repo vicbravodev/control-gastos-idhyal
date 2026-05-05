@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Building2,
     CalendarDays,
     ClipboardList,
     FileBarChart,
@@ -18,11 +19,11 @@ import {
     Wallet,
 } from 'lucide-react';
 import { useMemo } from 'react';
-import ApprovalPolicyController from '@/actions/App/Http/Controllers/ApprovalPolicies/ApprovalPolicyController';
-import ExpenseAnalyticsController from '@/actions/App/Http/Controllers/Reports/ExpenseAnalyticsController';
+import DepartmentController from '@/actions/App/Http/Controllers/Admin/DepartmentController';
 import RegionController from '@/actions/App/Http/Controllers/Admin/RegionController';
-import StateController from '@/actions/App/Http/Controllers/Admin/StateController';
 import StaffUserController from '@/actions/App/Http/Controllers/Admin/StaffUserController';
+import StateController from '@/actions/App/Http/Controllers/Admin/StateController';
+import ApprovalPolicyController from '@/actions/App/Http/Controllers/ApprovalPolicies/ApprovalPolicyController';
 import BudgetController from '@/actions/App/Http/Controllers/Budgets/BudgetController';
 import ExpenseConceptController from '@/actions/App/Http/Controllers/ExpenseConcepts/ExpenseConceptController';
 import ExpenseReportController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseReportController';
@@ -30,9 +31,10 @@ import ExpenseRequestApprovalController from '@/actions/App/Http/Controllers/Exp
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
 import ExpenseRequestPaymentController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestPaymentController';
 import ExpenseRequestSettlementController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestSettlementController';
-import VacationRuleController from '@/actions/App/Http/Controllers/VacationRules/VacationRuleController';
+import ExpenseAnalyticsController from '@/actions/App/Http/Controllers/Reports/ExpenseAnalyticsController';
 import VacationRequestApprovalController from '@/actions/App/Http/Controllers/VacationRequests/VacationRequestApprovalController';
 import VacationRequestController from '@/actions/App/Http/Controllers/VacationRequests/VacationRequestController';
+import VacationRuleController from '@/actions/App/Http/Controllers/VacationRules/VacationRuleController';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -185,6 +187,11 @@ export function AppSidebar() {
                     title: 'Estados',
                     href: StateController.index.url(),
                     icon: Map,
+                },
+                {
+                    title: 'Departamentos',
+                    href: DepartmentController.index.url(),
+                    icon: Building2,
                 },
                 {
                     title: 'Usuarios',

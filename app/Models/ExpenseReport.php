@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use Database\Factories\ExpenseReportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,7 +23,20 @@ class ExpenseReport extends Model
         'expense_request_id',
         'status',
         'reported_amount_cents',
+        'document_type',
         'submitted_at',
+        'cfdi_uuid',
+        'cfdi_emisor_rfc',
+        'cfdi_emisor_nombre',
+        'cfdi_receptor_rfc',
+        'cfdi_receptor_nombre',
+        'cfdi_fecha',
+        'cfdi_serie',
+        'cfdi_folio',
+        'cfdi_forma_pago',
+        'cfdi_metodo_pago',
+        'cfdi_uso_cfdi',
+        'cfdi_conceptos',
     ];
 
     /**
@@ -32,7 +46,10 @@ class ExpenseReport extends Model
     {
         return [
             'status' => ExpenseReportStatus::class,
+            'document_type' => ExpenseReportDocumentType::class,
             'submitted_at' => 'datetime',
+            'cfdi_fecha' => 'datetime',
+            'cfdi_conceptos' => 'array',
         ];
     }
 

@@ -2,9 +2,11 @@
 
 namespace App\Http\Requests\ExpenseRequests;
 
+use App\Enums\ExpenseReportDocumentType;
 use App\Models\ExpenseRequest;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreExpenseReportDraftRequest extends FormRequest
 {
@@ -22,7 +24,9 @@ class StoreExpenseReportDraftRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'reported_amount_cents' => ['required', 'integer', 'min:1'],
+            // El monto puede venir en cero para que se auto-llene desde el XML.
+            'reported_amount_cents' => ['required', 'integer', 'min:0'],
+            'document_type' => ['nullable', Rule::enum(ExpenseReportDocumentType::class)],
             'pdf' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'xml' => ['nullable', 'file', 'mimes:xml', 'max:10240'],
         ];

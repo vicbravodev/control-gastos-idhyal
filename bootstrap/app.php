@@ -33,5 +33,6 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('settlements:send-pending-reminders')->daily();
+        $schedule->command('vacation-requests:expire-stale-pending')->daily();
     })
     ->create();

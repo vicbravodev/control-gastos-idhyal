@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ExpenseRequests;
 
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequests\ApproveExpenseReportRequest;
@@ -69,6 +70,9 @@ class ExpenseReportController extends Controller
                 $request->integer('reported_amount_cents'),
                 $request->file('pdf'),
                 $request->file('xml'),
+                $request->filled('document_type')
+                    ? ExpenseReportDocumentType::tryFrom($request->string('document_type')->toString())
+                    : null,
             );
         } catch (InvalidExpenseReportException $e) {
             return redirect()
@@ -94,6 +98,7 @@ class ExpenseReportController extends Controller
                 $request->integer('reported_amount_cents'),
                 $request->file('pdf'),
                 $request->file('xml'),
+                $request->documentType(),
             );
         } catch (InvalidExpenseReportException $e) {
             return redirect()

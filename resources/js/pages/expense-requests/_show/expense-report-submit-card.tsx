@@ -12,8 +12,19 @@ import {
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+
+type DocumentType = 'factura' | 'recibo';
+
 type ReportFormState = {
     reported_amount_cents: number;
+    document_type: DocumentType;
     pdf: File | null;
     xml: File | null;
     expense_report?: string;
@@ -32,22 +43,28 @@ export default function ExpenseReportSubmitCard({
 }) {
     const draftForm = useForm<ReportFormState>({
         reported_amount_cents: defaultReportedCents,
+        document_type: 'factura',
         pdf: null,
         xml: null,
     });
 
     const submitForm = useForm<ReportFormState>({
         reported_amount_cents: defaultReportedCents,
+        document_type: 'factura',
         pdf: null,
         xml: null,
     });
+
+    const draftIsFactura = draftForm.data.document_type === 'factura';
+    const submitIsFactura = submitForm.data.document_type === 'factura';
 
     return (
         <Card className="border-primary/30">
             <CardHeader>
                 <CardTitle>Presentar comprobación</CardTitle>
                 <CardDescription>
-                    Guarda borrador o envía a contabilidad (requiere PDF y XML).
+                    El XML del CFDI solo es necesario cuando el documento es una
+                    factura.
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
@@ -67,6 +84,39 @@ export default function ExpenseReportSubmitCard({
                             );
                         }}
                     >
+                        <div className="grid gap-2">
+                            <Label htmlFor="draft-document-type">
+                                Tipo de documento
+                            </Label>
+                            <Select
+                                value={draftForm.data.document_type}
+                                onValueChange={(v) => {
+                                    draftForm.setData(
+                                        'document_type',
+                                        v as DocumentType,
+                                    );
+
+                                    if (v === 'recibo') {
+                                        draftForm.setData('xml', null);
+                                    }
+                                }}
+                            >
+                                <SelectTrigger id="draft-document-type">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="factura">
+                                        Factura (CFDI)
+                                    </SelectItem>
+                                    <SelectItem value="recibo">
+                                        Recibo (sin CFDI)
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <InputError
+                                message={draftForm.errors.document_type}
+                            />
+                        </div>
                         <div className="grid gap-2">
                             <Label htmlFor="draft-reported">
                                 Monto comprobado
@@ -106,24 +156,26 @@ export default function ExpenseReportSubmitCard({
                             />
                             <InputError message={draftForm.errors.pdf} />
                         </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="draft-xml">
-                                XML (opcional en borrador)
-                            </Label>
-                            <Input
-                                id="draft-xml"
-                                type="file"
-                                accept=".xml,text/xml,application/xml"
-                                className="cursor-pointer"
-                                onChange={(ev) =>
-                                    draftForm.setData(
-                                        'xml',
-                                        ev.target.files?.[0] ?? null,
-                                    )
-                                }
-                            />
-                            <InputError message={draftForm.errors.xml} />
-                        </div>
+                        {draftIsFactura && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="draft-xml">
+                                    XML CFDI (opcional en borrador)
+                                </Label>
+                                <Input
+                                    id="draft-xml"
+                                    type="file"
+                                    accept=".xml,text/xml,application/xml"
+                                    className="cursor-pointer"
+                                    onChange={(ev) =>
+                                        draftForm.setData(
+                                            'xml',
+                                            ev.target.files?.[0] ?? null,
+                                        )
+                                    }
+                                />
+                                <InputError message={draftForm.errors.xml} />
+                            </div>
+                        )}
                         <InputError
                             message={draftForm.errors.expense_report}
                         />
@@ -154,6 +206,39 @@ export default function ExpenseReportSubmitCard({
                             );
                         }}
                     >
+                        <div className="grid gap-2">
+                            <Label htmlFor="submit-document-type">
+                                Tipo de documento
+                            </Label>
+                            <Select
+                                value={submitForm.data.document_type}
+                                onValueChange={(v) => {
+                                    submitForm.setData(
+                                        'document_type',
+                                        v as DocumentType,
+                                    );
+
+                                    if (v === 'recibo') {
+                                        submitForm.setData('xml', null);
+                                    }
+                                }}
+                            >
+                                <SelectTrigger id="submit-document-type">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="factura">
+                                        Factura (CFDI)
+                                    </SelectItem>
+                                    <SelectItem value="recibo">
+                                        Recibo (sin CFDI)
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <InputError
+                                message={submitForm.errors.document_type}
+                            />
+                        </div>
                         <div className="grid gap-2">
                             <Label htmlFor="submit-reported">
                                 Monto comprobado
@@ -194,25 +279,27 @@ export default function ExpenseReportSubmitCard({
                             />
                             <InputError message={submitForm.errors.pdf} />
                         </div>
-                        <div className="grid gap-2">
-                            <Label htmlFor="submit-xml">
-                                XML (obligatorio)
-                            </Label>
-                            <Input
-                                id="submit-xml"
-                                type="file"
-                                accept=".xml,text/xml,application/xml"
-                                className="cursor-pointer"
-                                onChange={(ev) =>
-                                    submitForm.setData(
-                                        'xml',
-                                        ev.target.files?.[0] ?? null,
-                                    )
-                                }
-                                required
-                            />
-                            <InputError message={submitForm.errors.xml} />
-                        </div>
+                        {submitIsFactura && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="submit-xml">
+                                    XML CFDI (obligatorio para factura)
+                                </Label>
+                                <Input
+                                    id="submit-xml"
+                                    type="file"
+                                    accept=".xml,text/xml,application/xml"
+                                    className="cursor-pointer"
+                                    onChange={(ev) =>
+                                        submitForm.setData(
+                                            'xml',
+                                            ev.target.files?.[0] ?? null,
+                                        )
+                                    }
+                                    required={submitIsFactura}
+                                />
+                                <InputError message={submitForm.errors.xml} />
+                            </div>
+                        )}
                         <InputError
                             message={submitForm.errors.expense_report}
                         />

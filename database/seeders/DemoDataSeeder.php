@@ -6,6 +6,7 @@ use App\Enums\ApprovalInstanceStatus;
 use App\Enums\BudgetLedgerEntryType;
 use App\Enums\DeliveryMethod;
 use App\Enums\DocumentEventType;
+use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Enums\PaymentMethod;
@@ -13,6 +14,7 @@ use App\Enums\SettlementStatus;
 use App\Enums\VacationRequestStatus;
 use App\Models\Budget;
 use App\Models\BudgetLedgerEntry;
+use App\Models\Department;
 use App\Models\DocumentEvent;
 use App\Models\ExpenseConcept;
 use App\Models\ExpenseReport;
@@ -25,6 +27,7 @@ use App\Models\Settlement;
 use App\Models\State;
 use App\Models\User;
 use App\Models\VacationEntitlement;
+use App\Models\VacationEntitlementAdjustment;
 use App\Models\VacationRequest;
 use App\Models\VacationRequestApproval;
 use App\Models\VacationRule;
@@ -69,18 +72,42 @@ class DemoDataSeeder extends Seeder
      */
     private array $expenseConceptIds = [];
 
+    /** @var array<string, Department> */
+    private array $departments = [];
+
     public function run(): void
     {
         $this->defaultPassword = Hash::make('password');
 
         $this->seedRegionsAndStates();
+        $this->seedDepartments();
         $this->loadRoles();
         $this->seedUsers();
         $this->seedVacationRulesAndEntitlements();
+        $this->seedVacationEntitlementAdjustments();
         $this->seedExpenseConcepts();
         $this->seedBudgets();
         $this->seedExpenseRequests();
+        $this->seedReimbursementExpenseRequests();
         $this->seedVacationRequests();
+    }
+
+    private function seedDepartments(): void
+    {
+        $definitions = [
+            'tecnologia' => ['code' => 'TI', 'name' => 'Tecnología', 'position' => 10],
+            'contabilidad' => ['code' => 'CONT', 'name' => 'Contabilidad', 'position' => 20],
+            'operaciones' => ['code' => 'OPS', 'name' => 'Operaciones', 'position' => 30],
+            'asesoria' => ['code' => 'ASE', 'name' => 'Asesoría', 'position' => 40],
+            'direccion' => ['code' => 'DIR', 'name' => 'Dirección', 'position' => 50],
+        ];
+
+        foreach ($definitions as $key => $meta) {
+            $this->departments[$key] = Department::query()->updateOrCreate(
+                ['code' => $meta['code']],
+                ['name' => $meta['name'], 'is_active' => true, 'position' => $meta['position']],
+            );
+        }
     }
 
     private function seedRegionsAndStates(): void
@@ -128,6 +155,7 @@ class DemoDataSeeder extends Seeder
                 'username' => 'admin',
                 'region' => null,
                 'state' => null,
+                'department' => 'direccion',
             ],
             'secretario_general' => [
                 'name' => 'Secretario Demo',
@@ -135,6 +163,7 @@ class DemoDataSeeder extends Seeder
                 'username' => 'secretario',
                 'region' => $this->regionNorte,
                 'state' => null,
+                'department' => 'direccion',
             ],
             'contabilidad' => [
                 'name' => 'Contadora Demo',
@@ -142,6 +171,7 @@ class DemoDataSeeder extends Seeder
                 'username' => 'contabilidad',
                 'region' => null,
                 'state' => null,
+                'department' => 'contabilidad',
             ],
             'coord_regional' => [
                 'name' => 'Coord. Regional Norte',
@@ -149,6 +179,7 @@ class DemoDataSeeder extends Seeder
                 'username' => 'coord_regional',
                 'region' => $this->regionNorte,
                 'state' => null,
+                'department' => 'operaciones',
             ],
             'coord_estatal' => [
                 'name' => 'Coord. Estatal NL',
@@ -156,6 +187,7 @@ class DemoDataSeeder extends Seeder
                 'username' => 'coord_estatal',
                 'region' => $this->regionNorte,
                 'state' => $this->stateNL,
+                'department' => 'operaciones',
             ],
             'asesor' => [
                 'name' => 'Asesor Demo',
@@ -163,6 +195,7 @@ class DemoDataSeeder extends Seeder
                 'username' => 'asesor',
                 'region' => $this->regionNorte,
                 'state' => $this->stateNL,
+                'department' => 'asesoria',
             ],
         ];
 
@@ -177,6 +210,7 @@ class DemoDataSeeder extends Seeder
                     'role_id' => $this->roles[$roleSlug]->id,
                     'region_id' => $spec['region']?->id,
                     'state_id' => $spec['state']?->id,
+                    'department_id' => $this->departments[$spec['department']]?->id,
                     'phone' => fake()->numerify('55########'),
                     'hire_date' => '2019-03-01',
                 ],
@@ -193,6 +227,7 @@ class DemoDataSeeder extends Seeder
                 'role_id' => $this->roles['asesor']->id,
                 'region_id' => $this->regionNorte->id,
                 'state_id' => $this->stateJal->id,
+                'department_id' => $this->departments['asesoria']->id,
                 'phone' => fake()->numerify('33########'),
                 'hire_date' => '2020-07-01',
             ],
@@ -208,6 +243,7 @@ class DemoDataSeeder extends Seeder
                 'role_id' => $this->roles['asesor']->id,
                 'region_id' => $this->regionSur->id,
                 'state_id' => $this->stateOax->id,
+                'department_id' => $this->departments['asesoria']->id,
                 'phone' => fake()->numerify('95########'),
                 'hire_date' => now()->subMonths(6)->toDateString(),
             ],
@@ -223,6 +259,7 @@ class DemoDataSeeder extends Seeder
                 'role_id' => $this->roles['coord_estatal']->id,
                 'region_id' => $this->regionSur->id,
                 'state_id' => $this->stateOax->id,
+                'department_id' => $this->departments['operaciones']->id,
                 'phone' => fake()->numerify('95########'),
                 'hire_date' => '2018-01-10',
             ],
@@ -256,6 +293,81 @@ class DemoDataSeeder extends Seeder
                     'vacation_rule_id' => $rule->id,
                 ],
             );
+        }
+    }
+
+    /**
+     * Demo del flujo de devolución / corrección de saldo de vacaciones.
+     * Ejemplo de la junta: el asesor solicitó 8 días, sólo tomó 7 → +1 día devuelto.
+     * También un caso negativo (corrección) y un premio para coord_estatal.
+     */
+    private function seedVacationEntitlementAdjustments(): void
+    {
+        $year = (int) now()->year;
+        $admin = $this->users['super_admin'];
+
+        $adjustments = [
+            [
+                'user' => 'asesor',
+                'days' => 1,
+                'reason' => 'Devolución: solicitó 8 días, sólo tomó 7.',
+                'created_at' => now()->subDays(15),
+            ],
+            [
+                'user' => 'asesor2',
+                'days' => 2,
+                'reason' => 'Premio por desempeño anual.',
+                'created_at' => now()->subDays(60),
+            ],
+            [
+                'user' => 'asesor3',
+                'days' => -1,
+                'reason' => 'Corrección por error administrativo.',
+                'created_at' => now()->subDays(7),
+            ],
+            [
+                'user' => 'coord_estatal',
+                'days' => 3,
+                'reason' => 'Compensación por tiempo extra trabajado.',
+                'created_at' => now()->subDays(30),
+            ],
+        ];
+
+        foreach ($adjustments as $a) {
+            $user = $this->users[$a['user']];
+
+            $existing = VacationEntitlementAdjustment::query()
+                ->where('user_id', $user->id)
+                ->where('calendar_year', $year)
+                ->where('reason', $a['reason'])
+                ->first();
+
+            if ($existing !== null) {
+                continue;
+            }
+
+            $adjustment = VacationEntitlementAdjustment::query()->create([
+                'user_id' => $user->id,
+                'calendar_year' => $year,
+                'days' => $a['days'],
+                'reason' => $a['reason'],
+                'granted_by_user_id' => $admin->id,
+                'created_at' => $a['created_at'],
+                'updated_at' => $a['created_at'],
+            ]);
+
+            DocumentEvent::query()->create([
+                'subject_type' => $user->getMorphClass(),
+                'subject_id' => $user->id,
+                'event_type' => DocumentEventType::VacationEntitlementAdjusted,
+                'actor_user_id' => $admin->id,
+                'note' => $a['reason'],
+                'metadata' => [
+                    'adjustment_id' => $adjustment->id,
+                    'calendar_year' => $year,
+                    'days' => $a['days'],
+                ],
+            ]);
         }
     }
 
@@ -587,7 +699,29 @@ class DemoDataSeeder extends Seeder
             'expense_request_id' => $er->id,
             'status' => ExpenseReportStatus::AccountingReview,
             'reported_amount_cents' => 175_000,
+            'document_type' => ExpenseReportDocumentType::Factura,
             'submitted_at' => now()->subDays(2),
+            'cfdi_uuid' => '51DA9325-6DF1-4064-AAAB-386F7BC84AD6',
+            'cfdi_emisor_rfc' => 'STK230120D23',
+            'cfdi_emisor_nombre' => 'SISTEMAS TECNOLOGICOS KAPPU',
+            'cfdi_receptor_rfc' => 'IDH800514B86',
+            'cfdi_receptor_nombre' => 'IDHYAL',
+            'cfdi_fecha' => now()->subDays(3),
+            'cfdi_serie' => 'A',
+            'cfdi_folio' => '26',
+            'cfdi_forma_pago' => '03',
+            'cfdi_metodo_pago' => 'PUE',
+            'cfdi_uso_cfdi' => 'G03',
+            'cfdi_conceptos' => [
+                [
+                    'descripcion' => 'servicios de la nube 24 meses',
+                    'cantidad' => 1,
+                    'unidad' => 'Unidad de servicio',
+                    'valor_unitario' => 26500.0,
+                    'importe' => 26500.0,
+                    'clave_prod_serv' => '81112006',
+                ],
+            ],
         ]);
 
         $this->addEvent($er, DocumentEventType::ExpenseRequestSubmitted, $this->users['asesor2'], '-');
@@ -630,6 +764,7 @@ class DemoDataSeeder extends Seeder
             'expense_request_id' => $er->id,
             'status' => ExpenseReportStatus::Approved,
             'reported_amount_cents' => 118_500,
+            'document_type' => ExpenseReportDocumentType::Recibo,
             'submitted_at' => now()->subDays(8),
         ]);
 
@@ -674,6 +809,7 @@ class DemoDataSeeder extends Seeder
             'expense_request_id' => $er->id,
             'status' => ExpenseReportStatus::Approved,
             'reported_amount_cents' => 285_000,
+            'document_type' => ExpenseReportDocumentType::Factura,
             'submitted_at' => now()->subDays(12),
         ]);
 
@@ -726,6 +862,7 @@ class DemoDataSeeder extends Seeder
             'expense_request_id' => $er->id,
             'status' => ExpenseReportStatus::Approved,
             'reported_amount_cents' => 100_000,
+            'document_type' => ExpenseReportDocumentType::Factura,
             'submitted_at' => now()->subDays(25),
         ]);
 
@@ -779,6 +916,7 @@ class DemoDataSeeder extends Seeder
             'expense_request_id' => $er->id,
             'status' => ExpenseReportStatus::Approved,
             'reported_amount_cents' => 350_000,
+            'document_type' => ExpenseReportDocumentType::Recibo,
             'submitted_at' => now()->subDays(35),
         ]);
 
@@ -804,6 +942,156 @@ class DemoDataSeeder extends Seeder
         return $er;
     }
 
+    // ─── Reimbursements (comprobaciones directas sin solicitud previa) ─
+
+    private function seedReimbursementExpenseRequests(): void
+    {
+        $this->reimbursementInAccountingReview();
+        $this->reimbursementSettlementPendingCompanyPayment();
+        $this->reimbursementClosed();
+    }
+
+    /**
+     * Reembolso recién enviado: el asesor pagó de su bolsa una factura, subió
+     * el comprobante directamente y contabilidad la verá en su bandeja.
+     */
+    private function reimbursementInAccountingReview(): ExpenseRequest
+    {
+        $er = $this->createExpenseRequest(
+            $this->users['asesor'],
+            ExpenseRequestStatus::ExpenseReportInReview,
+            85_000,
+            'alimentos',
+            'Almuerzo con cliente — pagué de mi bolsa.',
+            85_000,
+            isReimbursement: true,
+        );
+
+        ExpenseReport::query()->create([
+            'expense_request_id' => $er->id,
+            'status' => ExpenseReportStatus::AccountingReview,
+            'reported_amount_cents' => 85_000,
+            'document_type' => ExpenseReportDocumentType::Factura,
+            'submitted_at' => now()->subDays(1),
+        ]);
+
+        $this->addEvent(
+            $er,
+            DocumentEventType::ExpenseRequestReimbursementCreated,
+            $this->users['asesor'],
+            'Comprobación directa enviada a contabilidad.',
+        );
+
+        return $er;
+    }
+
+    /**
+     * Reembolso aprobado por contabilidad: la empresa debe pagarle al usuario.
+     * Settlement quedó como pending_company_payment, basis = 0.
+     */
+    private function reimbursementSettlementPendingCompanyPayment(): ExpenseRequest
+    {
+        $er = $this->createExpenseRequest(
+            $this->users['asesor2'],
+            ExpenseRequestStatus::SettlementPending,
+            45_000,
+            'papeleria',
+            'Compra urgente de toner — recibo de la papelería.',
+            45_000,
+            isReimbursement: true,
+        );
+
+        $report = ExpenseReport::query()->create([
+            'expense_request_id' => $er->id,
+            'status' => ExpenseReportStatus::Approved,
+            'reported_amount_cents' => 45_000,
+            'document_type' => ExpenseReportDocumentType::Recibo,
+            'submitted_at' => now()->subDays(4),
+        ]);
+
+        Settlement::query()->create([
+            'expense_report_id' => $report->id,
+            'status' => SettlementStatus::PendingCompanyPayment,
+            'basis_amount_cents' => 0,
+            'reported_amount_cents' => 45_000,
+            'difference_cents' => -45_000,
+        ]);
+
+        $this->addEvent(
+            $er,
+            DocumentEventType::ExpenseRequestReimbursementCreated,
+            $this->users['asesor2'],
+            'Comprobación directa enviada a contabilidad.',
+        );
+        $this->addEvent(
+            $er,
+            DocumentEventType::ExpenseReportApproved,
+            $this->users['contabilidad'],
+            'Comprobación correcta, queda pendiente pagar al solicitante.',
+        );
+
+        return $er;
+    }
+
+    /**
+     * Reembolso completo y ya liquidado.
+     */
+    private function reimbursementClosed(): ExpenseRequest
+    {
+        $er = $this->createExpenseRequest(
+            $this->users['coord_estatal'],
+            ExpenseRequestStatus::Closed,
+            22_000,
+            'transporte',
+            'Taxi para junta extraordinaria — pagué de mi bolsa.',
+            22_000,
+            isReimbursement: true,
+        );
+
+        $report = ExpenseReport::query()->create([
+            'expense_request_id' => $er->id,
+            'status' => ExpenseReportStatus::Approved,
+            'reported_amount_cents' => 22_000,
+            'document_type' => ExpenseReportDocumentType::Factura,
+            'submitted_at' => now()->subDays(20),
+        ]);
+
+        Settlement::query()->create([
+            'expense_report_id' => $report->id,
+            'status' => SettlementStatus::Closed,
+            'basis_amount_cents' => 0,
+            'reported_amount_cents' => 22_000,
+            'difference_cents' => -22_000,
+        ]);
+
+        $this->addEvent(
+            $er,
+            DocumentEventType::ExpenseRequestReimbursementCreated,
+            $this->users['coord_estatal'],
+            'Comprobación directa enviada a contabilidad.',
+        );
+        $this->addEvent(
+            $er,
+            DocumentEventType::ExpenseReportApproved,
+            $this->users['contabilidad'],
+            'Aprobada.',
+        );
+        $this->addEvent(
+            $er,
+            DocumentEventType::SettlementLiquidationRecorded,
+            $this->users['contabilidad'],
+            'Reembolso depositado al solicitante.',
+        );
+        $this->addEvent(
+            $er,
+            DocumentEventType::SettlementClosed,
+            $this->users['contabilidad'],
+            'Liquidación completada.',
+        );
+
+        return $er;
+    }
+
     // ─── Vacation requests ───────────────────────────────────────────
 
     private function seedVacationRequests(): void
@@ -812,6 +1100,76 @@ class DemoDataSeeder extends Seeder
         $this->vacationPendingApproval();
         $this->vacationRejected();
         $this->vacationCompleted();
+        $this->vacationStaleAboutToExpire();
+        $this->vacationAlreadyExpired();
+    }
+
+    /**
+     * Solicitud creada hace más de 7 días que aún no se aprueba — el comando
+     * `vacation-requests:expire-stale-pending` la detectará en la próxima corrida.
+     */
+    private function vacationStaleAboutToExpire(): void
+    {
+        $vr = VacationRequest::query()->create([
+            'user_id' => $this->users['asesor3']->id,
+            'status' => VacationRequestStatus::Submitted,
+            'folio' => 'VAC-'.now()->year.'-DEMO-5',
+            'starts_on' => now()->addDays(40)->toDateString(),
+            'ends_on' => now()->addDays(44)->toDateString(),
+            'business_days_count' => 3,
+            'created_at' => now()->subDays(9),
+            'updated_at' => now()->subDays(9),
+        ]);
+
+        VacationRequestApproval::query()->create([
+            'vacation_request_id' => $vr->id,
+            'step_order' => 1,
+            'role_id' => $this->secretarioRole->id,
+            'status' => ApprovalInstanceStatus::Pending,
+            'approver_user_id' => null,
+            'note' => null,
+            'acted_at' => null,
+        ]);
+    }
+
+    /**
+     * Solicitud ya marcada como expirada por el comando programado.
+     * Sus días NO consumen saldo, así que el usuario los recuperó.
+     */
+    private function vacationAlreadyExpired(): void
+    {
+        $vr = VacationRequest::query()->create([
+            'user_id' => $this->users['coord_estatal2']->id,
+            'status' => VacationRequestStatus::Expired,
+            'folio' => 'VAC-'.now()->year.'-DEMO-6',
+            'starts_on' => now()->addDays(60)->toDateString(),
+            'ends_on' => now()->addDays(62)->toDateString(),
+            'business_days_count' => 2,
+            'created_at' => now()->subDays(20),
+            'updated_at' => now()->subDays(11),
+        ]);
+
+        VacationRequestApproval::query()->create([
+            'vacation_request_id' => $vr->id,
+            'step_order' => 1,
+            'role_id' => $this->secretarioRole->id,
+            'status' => ApprovalInstanceStatus::Skipped,
+            'approver_user_id' => null,
+            'note' => null,
+            'acted_at' => null,
+        ]);
+
+        DocumentEvent::query()->create([
+            'subject_type' => $vr->getMorphClass(),
+            'subject_id' => $vr->id,
+            'event_type' => DocumentEventType::VacationRequestExpired,
+            'actor_user_id' => null,
+            'note' => 'Expirada automáticamente tras 7 días sin aprobación.',
+            'metadata' => [
+                'reason' => 'expired_by_inactivity',
+                'expiration_days' => 7,
+            ],
+        ]);
     }
 
     private function vacationApproved(): void
@@ -911,6 +1269,7 @@ class DemoDataSeeder extends Seeder
         string $expenseConceptKey,
         ?string $conceptDescription = null,
         ?int $approvedCents = null,
+        bool $isReimbursement = false,
     ): ExpenseRequest {
         static $folioCounter = 0;
         $folioCounter++;
@@ -920,15 +1279,20 @@ class DemoDataSeeder extends Seeder
             throw new \InvalidArgumentException("Unknown expense concept key: {$expenseConceptKey}");
         }
 
+        $folioPrefix = $isReimbursement ? 'REIMB' : 'EXP';
+
         return ExpenseRequest::query()->create([
             'user_id' => $user->id,
             'status' => $status,
-            'folio' => sprintf('EXP-%d-DEMO-%03d', now()->year, $folioCounter),
+            'folio' => sprintf('%s-%d-DEMO-%03d', $folioPrefix, now()->year, $folioCounter),
             'requested_amount_cents' => $requestedCents,
             'approved_amount_cents' => $approvedCents,
             'expense_concept_id' => $conceptId,
             'concept_description' => $conceptDescription,
-            'delivery_method' => fake()->randomElement(DeliveryMethod::cases()),
+            'delivery_method' => $isReimbursement
+                ? DeliveryMethod::Transfer
+                : fake()->randomElement(DeliveryMethod::cases()),
+            'is_reimbursement' => $isReimbursement,
         ]);
     }
 

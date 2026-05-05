@@ -41,6 +41,7 @@ class StoreStaffUserRequest extends FormRequest
             'role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'region_id' => ['nullable', 'integer', Rule::exists('regions', 'id')],
             'state_id' => ['nullable', 'integer', Rule::exists('states', 'id')],
+            'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
             'hire_date' => ['required', 'date', 'before_or_equal:today'],
         ];
     }

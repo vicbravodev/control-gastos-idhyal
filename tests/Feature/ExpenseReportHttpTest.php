@@ -20,23 +20,13 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Support\CfdiTestFixtures;
 use Tests\TestCase;
 
 class ExpenseReportHttpTest extends TestCase
 {
+    use CfdiTestFixtures;
     use RefreshDatabase;
-
-    /**
-     * XML mínimo con forma CFDI 4.0 (SAT) para pruebas HTTP; el Total coincide con centavos MXN declarados.
-     */
-    private function cfdiXmlForReportedCents(int $reportedAmountCents): string
-    {
-        $total = number_format($reportedAmountCents / 100, 2, '.', '');
-
-        return '<?xml version="1.0" encoding="UTF-8"?>'
-            .'<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" '
-            .'Total="'.$total.'" Moneda="MXN"/>';
-    }
 
     private function seedRoles(): void
     {

@@ -20,7 +20,7 @@ final class SubmitExpenseReportForReview
     public function __construct(
         private readonly ExpenseReportAttachmentWriter $attachments,
         private readonly ExpenseRequestNotificationDispatcher $notifications,
-        private readonly CfdiComprobanteValidator $cfdiValidator,
+        private readonly CfdiComprobanteIngestor $cfdiIngestor,
     ) {}
 
     /**
@@ -62,24 +62,46 @@ final class SubmitExpenseReportForReview
             throw new InvalidExpenseReportException(__('La comprobación ya fue enviada o cerrada.'));
         }
 
+        $resolvedAmount = $reportedAmountCents;
+        $cfdiAttributes = [
+            'cfdi_uuid' => null,
+            'cfdi_emisor_rfc' => null,
+            'cfdi_emisor_nombre' => null,
+            'cfdi_receptor_rfc' => null,
+            'cfdi_receptor_nombre' => null,
+            'cfdi_fecha' => null,
+            'cfdi_serie' => null,
+            'cfdi_folio' => null,
+            'cfdi_forma_pago' => null,
+            'cfdi_metodo_pago' => null,
+            'cfdi_uso_cfdi' => null,
+            'cfdi_conceptos' => null,
+        ];
+
         if ($xml !== null) {
-            $this->cfdiValidator->validate($xml, $reportedAmountCents);
+            $ingestion = $this->cfdiIngestor->ingest($xml, $reportedAmountCents, $report);
+            $resolvedAmount = $ingestion->resolvedAmountCents;
+            $cfdiAttributes = $this->cfdiIngestor->metadataAttributes($ingestion->cfdi);
         }
 
-        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $reportedAmountCents, $pdf, $xml, $documentType, $report): ExpenseReport {
+        if ($resolvedAmount <= 0) {
+            throw new InvalidExpenseReportException(__('El monto comprobado es inválido.'));
+        }
+
+        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $resolvedAmount, $pdf, $xml, $documentType, $report, $cfdiAttributes): ExpenseReport {
+            $payload = array_merge([
+                'reported_amount_cents' => $resolvedAmount,
+                'document_type' => $documentType,
+            ], $cfdiAttributes);
+
             if ($report === null) {
-                $report = ExpenseReport::query()->create([
+                $report = ExpenseReport::query()->create(array_merge([
                     'expense_request_id' => $expenseRequest->id,
                     'status' => ExpenseReportStatus::Draft,
-                    'reported_amount_cents' => $reportedAmountCents,
-                    'document_type' => $documentType,
                     'submitted_at' => null,
-                ]);
+                ], $payload));
             } else {
-                $report->update([
-                    'reported_amount_cents' => $reportedAmountCents,
-                    'document_type' => $documentType,
-                ]);
+                $report->update($payload);
             }
 
             $report = $report->fresh();
@@ -109,8 +131,9 @@ final class SubmitExpenseReportForReview
                 'note' => '-',
                 'metadata' => [
                     'expense_report_id' => $report->id,
-                    'reported_amount_cents' => $reportedAmountCents,
+                    'reported_amount_cents' => $resolvedAmount,
                     'document_type' => $documentType->value,
+                    'cfdi_uuid' => $cfdiAttributes['cfdi_uuid'] ?? null,
                 ],
             ]);
 

@@ -701,6 +701,27 @@ class DemoDataSeeder extends Seeder
             'reported_amount_cents' => 175_000,
             'document_type' => ExpenseReportDocumentType::Factura,
             'submitted_at' => now()->subDays(2),
+            'cfdi_uuid' => '51DA9325-6DF1-4064-AAAB-386F7BC84AD6',
+            'cfdi_emisor_rfc' => 'STK230120D23',
+            'cfdi_emisor_nombre' => 'SISTEMAS TECNOLOGICOS KAPPU',
+            'cfdi_receptor_rfc' => 'IDH800514B86',
+            'cfdi_receptor_nombre' => 'IDHYAL',
+            'cfdi_fecha' => now()->subDays(3),
+            'cfdi_serie' => 'A',
+            'cfdi_folio' => '26',
+            'cfdi_forma_pago' => '03',
+            'cfdi_metodo_pago' => 'PUE',
+            'cfdi_uso_cfdi' => 'G03',
+            'cfdi_conceptos' => [
+                [
+                    'descripcion' => 'servicios de la nube 24 meses',
+                    'cantidad' => 1,
+                    'unidad' => 'Unidad de servicio',
+                    'valor_unitario' => 26500.0,
+                    'importe' => 26500.0,
+                    'clave_prod_serv' => '81112006',
+                ],
+            ],
         ]);
 
         $this->addEvent($er, DocumentEventType::ExpenseRequestSubmitted, $this->users['asesor2'], '-');

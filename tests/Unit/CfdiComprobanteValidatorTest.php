@@ -22,15 +22,20 @@ class CfdiComprobanteValidatorTest extends TestCase
         Config::set('expense_reports.cfdi.require_moneda_mxn', true);
     }
 
-    public function test_skips_validation_when_disabled_in_config(): void
+    public function test_skips_business_rules_when_disabled_in_config(): void
     {
         Config::set('expense_reports.cfdi.validate_structure', false);
 
-        $file = UploadedFile::fake()->createWithContent('x.xml', '<root/>');
+        // El XML sigue parseándose (necesitamos el Total para auto-fill y la
+        // metadata), pero las reglas de negocio (total↔monto, moneda, RFC,
+        // rango de fecha) no se aplican.
+        $xml = $this->cfdiXmlString(4, '500.00', 'USD');
+        $file = UploadedFile::fake()->createWithContent('c.xml', $xml);
 
-        $this->validator->validate($file, 100);
+        $cfdi = $this->validator->validate($file, 999_999);
 
-        $this->assertTrue(true);
+        $this->assertSame(50_000, $cfdi->totalCents);
+        $this->assertSame('USD', $cfdi->moneda);
     }
 
     public function test_accepts_cfdi_4_comprobante_with_matching_total(): void

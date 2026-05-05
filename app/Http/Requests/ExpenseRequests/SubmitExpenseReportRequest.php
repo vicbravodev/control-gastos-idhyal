@@ -26,7 +26,9 @@ class SubmitExpenseReportRequest extends FormRequest
         $isFactura = $this->documentType() === ExpenseReportDocumentType::Factura;
 
         return [
-            'reported_amount_cents' => ['required', 'integer', 'min:1'],
+            // El monto es opcional cuando viene XML porque se auto-llena del CFDI;
+            // para recibos sigue siendo obligatorio.
+            'reported_amount_cents' => [$isFactura ? 'nullable' : 'required', 'integer', 'min:0'],
             'document_type' => ['required', Rule::enum(ExpenseReportDocumentType::class)],
             'pdf' => ['required', 'file', 'mimes:pdf', 'max:10240'],
             'xml' => [$isFactura ? 'required' : 'nullable', 'file', 'mimes:xml', 'max:10240'],

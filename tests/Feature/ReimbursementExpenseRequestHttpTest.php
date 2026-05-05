@@ -19,25 +19,18 @@ use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\CfdiTestFixtures;
 use Tests\TestCase;
 
 class ReimbursementExpenseRequestHttpTest extends TestCase
 {
+    use CfdiTestFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(RoleSeeder::class);
-    }
-
-    private function cfdiXmlForReportedCents(int $reportedAmountCents): string
-    {
-        $total = number_format($reportedAmountCents / 100, 2, '.', '');
-
-        return '<?xml version="1.0" encoding="UTF-8"?>'
-            .'<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0" '
-            .'Total="'.$total.'" Moneda="MXN"/>';
     }
 
     private function expenseConcept(): ExpenseConcept

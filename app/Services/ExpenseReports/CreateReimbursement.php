@@ -21,7 +21,7 @@ final class CreateReimbursement
 {
     public function __construct(
         private readonly ExpenseReportAttachmentWriter $attachments,
-        private readonly CfdiComprobanteValidator $cfdiValidator,
+        private readonly CfdiComprobanteIngestor $cfdiIngestor,
         private readonly ExpenseRequestFolioGenerator $folioGenerator,
         private readonly ExpenseRequestNotificationDispatcher $notifications,
     ) {}
@@ -47,25 +47,35 @@ final class CreateReimbursement
             throw new InvalidExpenseReportException(__('Debes adjuntar el XML del CFDI cuando la comprobación es una factura.'));
         }
 
+        $resolvedAmount = $reportedAmountCents;
+        $cfdiAttributes = null;
+
         if ($xml !== null) {
-            $this->cfdiValidator->validate($xml, $reportedAmountCents);
+            $ingestion = $this->cfdiIngestor->ingest($xml, $reportedAmountCents);
+            $resolvedAmount = $ingestion->resolvedAmountCents;
+            $cfdiAttributes = $this->cfdiIngestor->metadataAttributes($ingestion->cfdi);
+        }
+
+        if ($resolvedAmount <= 0) {
+            throw new InvalidExpenseReportException(__('El monto comprobado es inválido.'));
         }
 
         $expenseRequest = DB::transaction(function () use (
             $actor,
-            $reportedAmountCents,
+            $resolvedAmount,
             $expenseConceptId,
             $conceptDescription,
             $documentType,
             $pdf,
             $xml,
+            $cfdiAttributes,
         ): ExpenseRequest {
             $expenseRequest = ExpenseRequest::query()->create([
                 'user_id' => $actor->id,
                 'status' => ExpenseRequestStatus::ExpenseReportInReview,
                 'folio' => null,
-                'requested_amount_cents' => $reportedAmountCents,
-                'approved_amount_cents' => $reportedAmountCents,
+                'requested_amount_cents' => $resolvedAmount,
+                'approved_amount_cents' => $resolvedAmount,
                 'expense_concept_id' => $expenseConceptId,
                 'concept_description' => $conceptDescription,
                 'delivery_method' => DeliveryMethod::Transfer,
@@ -75,13 +85,19 @@ final class CreateReimbursement
             $this->folioGenerator->assign($expenseRequest);
             $expenseRequest = $expenseRequest->fresh();
 
-            $report = ExpenseReport::query()->create([
+            $reportPayload = [
                 'expense_request_id' => $expenseRequest->id,
                 'status' => ExpenseReportStatus::AccountingReview,
-                'reported_amount_cents' => $reportedAmountCents,
+                'reported_amount_cents' => $resolvedAmount,
                 'document_type' => $documentType,
                 'submitted_at' => now(),
-            ]);
+            ];
+
+            if ($cfdiAttributes !== null) {
+                $reportPayload = array_merge($reportPayload, $cfdiAttributes);
+            }
+
+            $report = ExpenseReport::query()->create($reportPayload);
 
             $report = $report->fresh();
             $this->attachments->storeKind($report, $actor, $pdf, 'pdf');
@@ -98,8 +114,9 @@ final class CreateReimbursement
                 'note' => '-',
                 'metadata' => [
                     'expense_report_id' => $report->id,
-                    'reported_amount_cents' => $reportedAmountCents,
+                    'reported_amount_cents' => $resolvedAmount,
                     'document_type' => $documentType->value,
+                    'cfdi_uuid' => $cfdiAttributes['cfdi_uuid'] ?? null,
                 ],
             ]);
 

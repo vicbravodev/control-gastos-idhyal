@@ -23,7 +23,8 @@ class StoreReimbursementExpenseRequest extends FormRequest
         $isFactura = $this->documentType() === ExpenseReportDocumentType::Factura;
 
         return [
-            'reported_amount_cents' => ['required', 'integer', 'min:1'],
+            // El monto se auto-llena del CFDI cuando se envía un XML.
+            'reported_amount_cents' => [$isFactura ? 'nullable' : 'required', 'integer', 'min:0'],
             'expense_concept_id' => [
                 'required',
                 'integer',

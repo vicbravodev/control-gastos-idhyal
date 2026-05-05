@@ -613,6 +613,20 @@ class ExpenseRequestController extends Controller
             'has_pdf_and_xml' => $writer->hasPdfAndXml($report),
             'verification_pdf_attachment_id' => $writer->findVerificationAttachment($report, 'pdf')?->id,
             'verification_xml_attachment_id' => $writer->findVerificationAttachment($report, 'xml')?->id,
+            'cfdi' => $report->cfdi_uuid === null ? null : [
+                'uuid' => $report->cfdi_uuid,
+                'emisor_rfc' => $report->cfdi_emisor_rfc,
+                'emisor_nombre' => $report->cfdi_emisor_nombre,
+                'receptor_rfc' => $report->cfdi_receptor_rfc,
+                'receptor_nombre' => $report->cfdi_receptor_nombre,
+                'fecha' => $report->cfdi_fecha?->toIso8601String(),
+                'serie' => $report->cfdi_serie,
+                'folio' => $report->cfdi_folio,
+                'forma_pago' => $report->cfdi_forma_pago,
+                'metodo_pago' => $report->cfdi_metodo_pago,
+                'uso_cfdi' => $report->cfdi_uso_cfdi,
+                'conceptos' => $report->cfdi_conceptos ?? [],
+            ],
         ];
     }
 

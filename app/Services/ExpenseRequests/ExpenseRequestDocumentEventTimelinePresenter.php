@@ -33,6 +33,7 @@ class ExpenseRequestDocumentEventTimelinePresenter
         return match ($type) {
             DocumentEventType::Rejection => 'Rechazo en aprobación',
             DocumentEventType::Cancellation => 'Cancelación de solicitud',
+            DocumentEventType::ExpenseRequestReimbursementCreated => 'Reembolso registrado',
             DocumentEventType::ExpenseRequestSubmitted => 'Envío a aprobación',
             DocumentEventType::ExpenseRequestChainApproved => 'Cadena de aprobación completada',
             DocumentEventType::ExpenseRequestPaid => 'Pago registrado',

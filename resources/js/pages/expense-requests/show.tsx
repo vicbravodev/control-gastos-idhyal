@@ -41,6 +41,7 @@ import type { ApprovalRow, BreadcrumbItem } from '@/types';
 import ActionRequiredCard from './_show/action-required-card';
 import DocumentTimelineCard from './_show/document-timeline-card';
 import DocumentsSection from './_show/documents-section';
+import ExpenseReportCfdiCard from './_show/expense-report-cfdi-card';
 import ExpenseReportSummaryCard from './_show/expense-report-summary-card';
 import PaymentSummaryCard from './_show/payment-summary-card';
 import type { Detail } from './_show/types';
@@ -490,6 +491,12 @@ export default function ExpenseRequestsShow({
                                 canDownloadXml={
                                     canDownloadExpenseReportVerificationXml
                                 }
+                            />
+                        ) : null}
+
+                        {expenseRequest.expense_report?.cfdi ? (
+                            <ExpenseReportCfdiCard
+                                cfdi={expenseRequest.expense_report.cfdi}
                             />
                         ) : null}
 

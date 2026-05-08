@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\ApprovalPolicies\ApprovalPolicyController;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
 use App\Models\Role;
@@ -44,7 +45,8 @@ class ApprovalPolicyHttpTest extends TestCase
         $policy = ApprovalPolicy::factory()->create();
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
-            'role_id' => Role::query()->where('slug', 'contabilidad')->first()->id,
+            'approver_type' => 'role',
+            'approver_id' => Role::query()->where('slug', 'contabilidad')->first()->id,
         ]);
 
         $this->actingAs($user)
@@ -118,15 +120,16 @@ class ApprovalPolicyHttpTest extends TestCase
                 'document_type' => 'expense_request',
                 'name' => 'Test Policy',
                 'version' => 1,
-                'requester_role_id' => null,
+                'applies_to_type' => null, 'applies_to_id' => null,
                 'effective_from' => null,
                 'effective_to' => null,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => $role->id, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => $role->id, 'step_mode' => 'sequential'],
                 ],
             ])
-            ->assertRedirect(action([\App\Http\Controllers\ApprovalPolicies\ApprovalPolicyController::class, 'index']));
+            ->assertRedirect(action([ApprovalPolicyController::class, 'index']));
 
         $this->assertDatabaseHas('approval_policies', [
             'name' => 'Test Policy',
@@ -134,7 +137,7 @@ class ApprovalPolicyHttpTest extends TestCase
         ]);
 
         $this->assertDatabaseHas('approval_policy_steps', [
-            'role_id' => $role->id,
+            'approver_type' => 'role', 'approver_id' => $role->id,
             'step_order' => 1,
         ]);
     }
@@ -152,8 +155,10 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 1,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => $coordRegional->id, 'combine_with_next' => 'and'],
-                    ['role_id' => $contabilidad->id, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => $coordRegional->id, 'step_mode' => 'sequential'],
+                    ['approver_type' => 'role',
+                        'approver_id' => $contabilidad->id, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertRedirect();
@@ -176,7 +181,8 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 1,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => 1, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => 1, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertForbidden();
@@ -195,7 +201,8 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 1,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => Role::query()->first()->id, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => Role::query()->first()->id, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertSessionHasErrors('name');
@@ -227,7 +234,8 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 1,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => Role::query()->first()->id, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => Role::query()->first()->id, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertSessionHasErrors('document_type');
@@ -246,7 +254,8 @@ class ApprovalPolicyHttpTest extends TestCase
                 'effective_from' => '2026-12-31',
                 'effective_to' => '2026-01-01',
                 'steps' => [
-                    ['role_id' => Role::query()->first()->id, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => Role::query()->first()->id, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertSessionHasErrors('effective_to');
@@ -260,7 +269,8 @@ class ApprovalPolicyHttpTest extends TestCase
         $policy = ApprovalPolicy::factory()->create();
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
-            'role_id' => Role::query()->where('slug', 'contabilidad')->first()->id,
+            'approver_type' => 'role',
+            'approver_id' => Role::query()->where('slug', 'contabilidad')->first()->id,
         ]);
 
         $this->actingAs($user)
@@ -295,7 +305,8 @@ class ApprovalPolicyHttpTest extends TestCase
 
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
-            'role_id' => $oldRole->id,
+            'approver_type' => 'role',
+            'approver_id' => $oldRole->id,
         ]);
 
         $this->actingAs($user)
@@ -305,7 +316,7 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 2,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => $newRole->id, 'combine_with_next' => 'or'],
+                    ['approver_type' => 'role', 'approver_id' => $newRole->id, 'step_mode' => 'any_of'],
                 ],
             ])
             ->assertRedirect();
@@ -314,8 +325,8 @@ class ApprovalPolicyHttpTest extends TestCase
         $this->assertEquals('Updated', $policy->name);
         $this->assertEquals(2, $policy->version);
         $this->assertCount(1, $policy->steps);
-        $this->assertEquals($newRole->id, $policy->steps->first()->role_id);
-        $this->assertEquals('or', $policy->steps->first()->combine_with_next->value);
+        $this->assertEquals($newRole->id, $policy->steps->first()->approver_id);
+        $this->assertEquals('any_of', $policy->steps->first()->step_mode->value);
     }
 
     public function test_secretario_general_can_update_policy(): void
@@ -325,7 +336,8 @@ class ApprovalPolicyHttpTest extends TestCase
         $role = Role::query()->where('slug', 'contabilidad')->first();
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
-            'role_id' => $role->id,
+            'approver_type' => 'role',
+            'approver_id' => $role->id,
         ]);
 
         $this->actingAs($user)
@@ -335,7 +347,7 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 1,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => $role->id, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role', 'approver_id' => $role->id, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertRedirect();
@@ -353,7 +365,8 @@ class ApprovalPolicyHttpTest extends TestCase
                 'version' => 1,
                 'is_active' => true,
                 'steps' => [
-                    ['role_id' => 1, 'combine_with_next' => 'and'],
+                    ['approver_type' => 'role',
+                        'approver_id' => 1, 'step_mode' => 'sequential'],
                 ],
             ])
             ->assertForbidden();
@@ -367,7 +380,8 @@ class ApprovalPolicyHttpTest extends TestCase
         $policy = ApprovalPolicy::factory()->create();
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
-            'role_id' => Role::query()->where('slug', 'contabilidad')->first()->id,
+            'approver_type' => 'role',
+            'approver_id' => Role::query()->where('slug', 'contabilidad')->first()->id,
         ]);
 
         $this->actingAs($user)

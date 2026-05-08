@@ -10,7 +10,7 @@ final class ExpenseRequestSubmissionReceiptPdf
 {
     public function download(ExpenseRequest $expenseRequest): Response
     {
-        $expenseRequest->load(['user', 'expenseConcept', 'approvals.role']);
+        $expenseRequest->load(['user', 'expenseConcept', 'approvals.approver']);
 
         $filename = 'acuse-solicitud-'.($expenseRequest->folio ?? $expenseRequest->id).'.pdf';
 

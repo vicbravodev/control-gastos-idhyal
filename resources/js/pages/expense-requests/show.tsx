@@ -1,24 +1,24 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import {
+    ArrowLeft,
     CheckCircle2,
     EllipsisVertical,
+    GitBranch,
+    Info,
+    MessageSquare,
+    Paperclip,
     Pencil,
     XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
+
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
-import Heading from '@/components/heading';
+import { ApprovalTimeline, DetailRow } from '@/components/idhyal';
+import type { ApprovalTimelineStep } from '@/components/idhyal';
 import InputError from '@/components/input-error';
 import { StatusBadge } from '@/components/status-badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
     Dialog,
     DialogClose,
@@ -27,17 +27,23 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Separator } from '@/components/ui/separator';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { formatCentsMx } from '@/lib/money';
 import { dashboard } from '@/routes';
-import type { BreadcrumbItem } from '@/types';
+import type { ApprovalRow, BreadcrumbItem } from '@/types';
 import ActionRequiredCard from './_show/action-required-card';
 import DocumentTimelineCard from './_show/document-timeline-card';
 import DocumentsSection from './_show/documents-section';
 import ExpenseReportCfdiCard from './_show/expense-report-cfdi-card';
-import ProgressStepper from './_show/progress-stepper';
+import ExpenseReportSummaryCard from './_show/expense-report-summary-card';
+import PaymentSummaryCard from './_show/payment-summary-card';
 import type { Detail } from './_show/types';
 
 const breadcrumbs = (id: number): BreadcrumbItem[] => [
@@ -51,6 +57,116 @@ const breadcrumbs = (id: number): BreadcrumbItem[] => [
         href: ExpenseRequestController.show.url(id),
     },
 ];
+
+const longDateFormatter = new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+});
+
+const longDateTimeFormatter = new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+});
+
+function formatLongDate(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    try {
+        return longDateFormatter.format(new Date(iso));
+    } catch {
+        return '—';
+    }
+}
+
+function formatLongDateTime(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    try {
+        return longDateTimeFormatter.format(new Date(iso));
+    } catch {
+        return '—';
+    }
+}
+
+function buildApprovalSteps(
+    detail: Detail,
+    activeApprovalId: number | null,
+): ApprovalTimelineStep[] {
+    const steps: ApprovalTimelineStep[] = [
+        {
+            actor: detail.user.name,
+            role: 'Envió la solicitud',
+            status: 'done',
+            timestamp: detail.created_at
+                ? formatLongDateTime(detail.created_at)
+                : undefined,
+        },
+    ];
+
+    for (const approval of detail.approvals) {
+        const isCurrent = activeApprovalId === approval.id;
+        const status =
+            approval.status === 'approved'
+                ? ('done' as const)
+                : approval.status === 'rejected'
+                  ? ('rejected' as const)
+                  : isCurrent
+                    ? ('current' as const)
+                    : ('pending' as const);
+
+        const actor = approval.approver.name?.trim()
+            ? approval.approver.name
+            : approval.approver.type_label;
+        const role =
+            actor === approval.approver.type_label
+                ? undefined
+                : approval.approver.type_label;
+
+        let timestamp: string | undefined;
+
+        if (status === 'done' || status === 'rejected') {
+            timestamp = approval.acted_at
+                ? formatLongDateTime(approval.acted_at)
+                : undefined;
+        } else if (status === 'current') {
+            timestamp = 'Pendiente · esperando decisión';
+        } else {
+            timestamp = 'Pendiente';
+        }
+
+        steps.push({
+            actor,
+            role,
+            status,
+            timestamp,
+            note: approval.note ?? undefined,
+        });
+    }
+
+    return steps;
+}
+
+function describeAmount(detail: Detail): {
+    primaryCents: number;
+    showApproved: boolean;
+} {
+    if (detail.approved_amount_cents !== null) {
+        return {
+            primaryCents: detail.approved_amount_cents,
+            showApproved: true,
+        };
+    }
+
+    return { primaryCents: detail.requested_amount_cents, showApproved: false };
+}
 
 export default function ExpenseRequestsShow({
     expenseRequest,
@@ -95,9 +211,8 @@ export default function ExpenseRequestsShow({
 }) {
     const { flash } = usePage<{ flash?: { status?: string } }>().props;
 
-    const activeApproval = expenseRequest.approvals.find(
-        (a) => a.id === activeApprovalId,
-    );
+    const activeApproval: ApprovalRow | undefined =
+        expenseRequest.approvals.find((a) => a.id === activeApprovalId);
 
     const hasAction =
         !!activeApproval ||
@@ -114,6 +229,9 @@ export default function ExpenseRequestsShow({
             : expenseRequest.delivery_method === 'transfer'
               ? 'Transferencia'
               : expenseRequest.delivery_method;
+
+    const { primaryCents, showApproved } = describeAmount(expenseRequest);
+    const approvalSteps = buildApprovalSteps(expenseRequest, activeApprovalId);
 
     const downloadButtons = [
         {
@@ -153,44 +271,6 @@ export default function ExpenseRequestsShow({
         },
         {
             show:
-                canDownloadExpenseReportVerificationPdf &&
-                expenseRequest.expense_report
-                    ?.verification_pdf_attachment_id != null,
-            href:
-                expenseRequest.expense_report
-                    ?.verification_pdf_attachment_id != null
-                    ? ExpenseRequestController.downloadExpenseReportVerificationAttachment.url(
-                          {
-                              expense_request: expenseRequest.id,
-                              attachment:
-                                  expenseRequest.expense_report
-                                      .verification_pdf_attachment_id,
-                          },
-                      )
-                    : '#',
-            label: 'PDF comprobación',
-        },
-        {
-            show:
-                canDownloadExpenseReportVerificationXml &&
-                expenseRequest.expense_report
-                    ?.verification_xml_attachment_id != null,
-            href:
-                expenseRequest.expense_report
-                    ?.verification_xml_attachment_id != null
-                    ? ExpenseRequestController.downloadExpenseReportVerificationAttachment.url(
-                          {
-                              expense_request: expenseRequest.id,
-                              attachment:
-                                  expenseRequest.expense_report
-                                      .verification_xml_attachment_id,
-                          },
-                      )
-                    : '#',
-            label: 'XML comprobación',
-        },
-        {
-            show:
                 canDownloadPaymentEvidence &&
                 expenseRequest.payment?.evidence_attachment_id != null,
             href:
@@ -205,10 +285,6 @@ export default function ExpenseRequestsShow({
         },
     ].filter((b) => b.show);
 
-    const isTerminal = ['rejected', 'cancelled', 'closed'].includes(
-        expenseRequest.status,
-    );
-
     return (
         <AppLayout breadcrumbs={breadcrumbs(expenseRequest.id)}>
             <Head
@@ -218,176 +294,253 @@ export default function ExpenseRequestsShow({
                         : 'Solicitud de gasto'
                 }
             />
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-4 pb-16 animate-fade-in">
+            <div className="flex animate-fade-in flex-col gap-5 p-4 pb-16 sm:p-6">
                 {flash?.status && (
-                    <Alert className="border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950">
-                        <CheckCircle2 className="size-4 text-emerald-600" />
+                    <Alert className="border-[var(--success-bg)] bg-[var(--success-bg)] text-[var(--success-fg)]">
+                        <CheckCircle2 className="size-4" />
                         <AlertTitle>Listo</AlertTitle>
                         <AlertDescription>{flash.status}</AlertDescription>
                     </Alert>
                 )}
 
-                {/* ── Header ─────────────────────────────── */}
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <Heading
-                                title={
-                                    expenseRequest.folio ??
-                                    `Solicitud #${expenseRequest.id}`
-                                }
-                                description={`Solicitante: ${expenseRequest.user.name}`}
-                            />
+                {/* ── Hero ─────────────────────────────────── */}
+                <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span className="t-folio font-semibold text-[var(--brand-blue-700)]">
+                                    {expenseRequest.folio ??
+                                        `#${expenseRequest.id}`}
+                                </span>
+                                <span aria-hidden>·</span>
+                                <span>Solicitud de gasto</span>
+                                <span aria-hidden>·</span>
+                                <span>
+                                    Solicitante: {expenseRequest.user.name}
+                                </span>
+                                {expenseRequest.created_at ? (
+                                    <>
+                                        <span aria-hidden>·</span>
+                                        <span>
+                                            Creada{' '}
+                                            {formatLongDate(
+                                                expenseRequest.created_at,
+                                            )}
+                                        </span>
+                                    </>
+                                ) : null}
+                            </div>
+                            <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em]">
+                                {expenseRequest.concept_label}
+                            </h1>
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                                <StatusBadge
+                                    status={expenseRequest.status}
+                                    size="lg"
+                                />
+                                <div className="t-num text-2xl font-bold tracking-[-0.02em]">
+                                    {formatCentsMx(primaryCents)}
+                                </div>
+                                {showApproved ? (
+                                    <span className="text-sm text-muted-foreground">
+                                        · solicitado{' '}
+                                        <span className="t-num font-semibold text-foreground">
+                                            {formatCentsMx(
+                                                expenseRequest.requested_amount_cents,
+                                            )}
+                                        </span>
+                                    </span>
+                                ) : null}
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <StatusBadge
-                            status={expenseRequest.status}
-                            className="text-sm px-3 py-1"
-                        />
                         <HeaderActions
                             expenseRequestId={expenseRequest.id}
                             canUpdate={canUpdate}
                             canCancel={canCancel}
                         />
                     </div>
-                </div>
+                </section>
 
-                {/* ── Action required ────────────────────── */}
-                {hasAction && (
-                    <ActionRequiredCard
-                        expenseRequest={expenseRequest}
-                        canRecordPayment={canRecordPayment}
-                        canSaveExpenseReportDraft={canSaveExpenseReportDraft}
-                        canSubmitExpenseReport={canSubmitExpenseReport}
-                        canReviewExpenseReport={canReviewExpenseReport}
-                        canRecordSettlementLiquidation={
-                            canRecordSettlementLiquidation
-                        }
-                        canCloseSettlement={canCloseSettlement}
-                        canDownloadSettlementLiquidationReceipt={
-                            canDownloadSettlementLiquidationReceipt
-                        }
-                        activeApproval={activeApproval}
-                    />
-                )}
-
-                {/* ── Request summary ────────────────────── */}
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            Resumen de solicitud
-                        </p>
-                        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-                            <div>
-                                <dt className="text-muted-foreground">
-                                    Monto solicitado
-                                </dt>
-                                <dd className="mt-0.5 text-base font-semibold tabular-nums">
-                                    {formatCentsMx(
-                                        expenseRequest.requested_amount_cents,
-                                    )}
-                                </dd>
-                            </div>
-                            {expenseRequest.approved_amount_cents !== null && (
-                                <div>
-                                    <dt className="text-muted-foreground">
-                                        Monto aprobado
-                                    </dt>
-                                    <dd className="mt-0.5 text-base font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                                        {formatCentsMx(
-                                            expenseRequest.approved_amount_cents,
-                                        )}
-                                    </dd>
-                                </div>
-                            )}
-                            <div>
-                                <dt className="text-muted-foreground">
-                                    Entrega
-                                </dt>
-                                <dd className="mt-0.5 font-medium">
-                                    {deliveryLabel}
-                                </dd>
-                            </div>
-                        </dl>
-                        <Separator className="my-4" />
-                        <div>
-                            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                Concepto
-                            </p>
-                            <p className="text-sm font-medium leading-relaxed">
-                                {expenseRequest.concept_label}
-                            </p>
-                            {expenseRequest.concept_description ? (
-                                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                                    {expenseRequest.concept_description}
-                                </p>
-                            ) : null}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* ── Progress stepper ───────────────────── */}
-                <div className="space-y-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Progreso
-                    </p>
-                    <Card>
-                        <CardContent className="pt-6">
-                            <ProgressStepper
-                                requestStatus={expenseRequest.status}
-                                approvals={expenseRequest.approvals}
-                                approvalProgress={
-                                    expenseRequest.approval_progress
+                <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+                    {/* ── Left column ──────────────────────── */}
+                    <div className="flex flex-col gap-5">
+                        {hasAction && (
+                            <ActionRequiredCard
+                                expenseRequest={expenseRequest}
+                                canRecordPayment={canRecordPayment}
+                                canSaveExpenseReportDraft={
+                                    canSaveExpenseReportDraft
                                 }
-                                payment={expenseRequest.payment}
-                                expenseReport={expenseRequest.expense_report}
-                                settlement={expenseRequest.settlement}
+                                canSubmitExpenseReport={canSubmitExpenseReport}
+                                canReviewExpenseReport={canReviewExpenseReport}
+                                canRecordSettlementLiquidation={
+                                    canRecordSettlementLiquidation
+                                }
+                                canCloseSettlement={canCloseSettlement}
+                                canDownloadSettlementLiquidationReceipt={
+                                    canDownloadSettlementLiquidationReceipt
+                                }
+                                activeApproval={activeApproval}
                             />
-                        </CardContent>
-                    </Card>
-                </div>
+                        )}
 
-                {/* ── CFDI metadata (cuando la comprobación es factura) ── */}
-                {expenseRequest.expense_report?.cfdi && (
-                    <ExpenseReportCfdiCard
-                        cfdi={expenseRequest.expense_report.cfdi}
-                    />
-                )}
-
-                {/* ── Documents & downloads ──────────────── */}
-                <Card>
-                    <CardContent className="pt-6">
-                        <DocumentsSection
-                            expenseRequestId={expenseRequest.id}
-                            attachments={
-                                expenseRequest.submission_attachments
+                        <CardSection
+                            icon={
+                                <Info className="size-4 text-[var(--brand-blue-600)]" />
                             }
-                            canAddAttachments={canAddSubmissionAttachments}
-                            downloads={downloadButtons}
-                        />
-                    </CardContent>
-                </Card>
+                            title="Datos de la solicitud"
+                        >
+                            <div className="px-5 py-2">
+                                <DetailRow label="Solicitante">
+                                    {expenseRequest.user.name}
+                                </DetailRow>
+                                <DetailRow label="Concepto">
+                                    {expenseRequest.concept_label}
+                                </DetailRow>
+                                {expenseRequest.concept_description ? (
+                                    <DetailRow label="Justificación">
+                                        <span className="whitespace-pre-wrap">
+                                            {expenseRequest.concept_description}
+                                        </span>
+                                    </DetailRow>
+                                ) : null}
+                                <DetailRow label="Forma de entrega">
+                                    {deliveryLabel}
+                                </DetailRow>
+                                <DetailRow label="Fecha de creación">
+                                    {formatLongDate(expenseRequest.created_at)}
+                                </DetailRow>
+                                <DetailRow label="Monto solicitado">
+                                    <span className="t-num font-semibold">
+                                        {formatCentsMx(
+                                            expenseRequest.requested_amount_cents,
+                                        )}
+                                    </span>
+                                </DetailRow>
+                                {expenseRequest.approved_amount_cents !==
+                                null ? (
+                                    <DetailRow label="Monto aprobado">
+                                        <span className="t-num font-semibold text-[var(--success-fg)]">
+                                            {formatCentsMx(
+                                                expenseRequest.approved_amount_cents,
+                                            )}
+                                        </span>
+                                    </DetailRow>
+                                ) : null}
+                            </div>
+                        </CardSection>
 
-                {/* ── Timeline ───────────────────────────── */}
-                <Card>
-                    <CardContent className="pt-6">
-                        <DocumentTimelineCard
-                            timeline={expenseRequest.document_timeline}
-                        />
-                    </CardContent>
-                </Card>
+                        <CardSection
+                            icon={
+                                <Paperclip className="size-4 text-[var(--brand-blue-600)]" />
+                            }
+                            title="Evidencia y documentos"
+                        >
+                            <div className="p-5">
+                                <DocumentsSection
+                                    expenseRequestId={expenseRequest.id}
+                                    attachments={
+                                        expenseRequest.submission_attachments
+                                    }
+                                    canAddAttachments={
+                                        canAddSubmissionAttachments
+                                    }
+                                    downloads={downloadButtons}
+                                />
+                            </div>
+                        </CardSection>
+
+                        {expenseRequest.document_timeline.length > 0 && (
+                            <CardSection
+                                icon={
+                                    <MessageSquare className="size-4 text-[var(--brand-blue-600)]" />
+                                }
+                                title="Bitácora del documento"
+                            >
+                                <div className="p-5">
+                                    <DocumentTimelineCard
+                                        timeline={
+                                            expenseRequest.document_timeline
+                                        }
+                                    />
+                                </div>
+                            </CardSection>
+                        )}
+                    </div>
+
+                    {/* ── Right column ─────────────────────── */}
+                    <div className="flex flex-col gap-5">
+                        <CardSection
+                            icon={
+                                <GitBranch className="size-4 text-[var(--brand-blue-600)]" />
+                            }
+                            title="Cadena de aprobación"
+                        >
+                            <div className="px-5 py-5">
+                                <ApprovalTimeline steps={approvalSteps} />
+                            </div>
+                        </CardSection>
+
+                        {expenseRequest.expense_report ? (
+                            <ExpenseReportSummaryCard
+                                expenseRequestId={expenseRequest.id}
+                                report={expenseRequest.expense_report}
+                                canDownloadPdf={
+                                    canDownloadExpenseReportVerificationPdf
+                                }
+                                canDownloadXml={
+                                    canDownloadExpenseReportVerificationXml
+                                }
+                            />
+                        ) : null}
+
+                        {expenseRequest.expense_report?.cfdi ? (
+                            <ExpenseReportCfdiCard
+                                cfdi={expenseRequest.expense_report.cfdi}
+                            />
+                        ) : null}
+
+                        {expenseRequest.payment ? (
+                            <PaymentSummaryCard
+                                expenseRequestId={expenseRequest.id}
+                                payment={expenseRequest.payment}
+                                canDownloadEvidence={canDownloadPaymentEvidence}
+                            />
+                        ) : null}
+                    </div>
+                </div>
 
                 {/* ── Footer nav ─────────────────────────── */}
-                <div className="flex justify-center">
+                <div className="flex justify-center pt-2">
                     <Button variant="outline" size="lg" asChild>
                         <Link href={ExpenseRequestController.index.url()}>
+                            <ArrowLeft />
                             Volver al listado
                         </Link>
                     </Button>
                 </div>
             </div>
         </AppLayout>
+    );
+}
+
+function CardSection({
+    icon,
+    title,
+    children,
+}: {
+    icon: React.ReactNode;
+    title: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="overflow-hidden rounded-xl border border-border bg-card">
+            <header className="flex items-center gap-2.5 border-b border-border px-5 py-3.5">
+                {icon}
+                <h2 className="text-sm font-semibold">{title}</h2>
+            </header>
+            {children}
+        </section>
     );
 }
 
@@ -402,13 +555,15 @@ function HeaderActions({
 }) {
     const [cancelConfirm, setCancelConfirm] = useState(false);
 
-    if (!canUpdate && !canCancel) return null;
+    if (!canUpdate && !canCancel) {
+        return null;
+    }
 
     return (
         <>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-9">
+                    <Button variant="outline" size="icon" className="size-9">
                         <EllipsisVertical className="size-4" />
                     </Button>
                 </DropdownMenuTrigger>
@@ -498,9 +653,7 @@ function CancelDialog({
                             variant="destructive"
                             disabled={form.processing}
                         >
-                            {form.processing
-                                ? 'Procesando…'
-                                : 'Sí, cancelar'}
+                            {form.processing ? 'Procesando…' : 'Sí, cancelar'}
                         </Button>
                     </DialogFooter>
                 </form>

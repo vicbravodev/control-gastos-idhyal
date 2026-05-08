@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\RoleSlug;
 use App\Models\Payment;
 use App\Models\User;
 
@@ -10,14 +9,14 @@ class PaymentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('payment.view_any');
     }
 
     public function view(User $user, Payment $payment): bool
     {
         $payment->loadMissing('expenseRequest');
 
-        if ($user->hasRole(RoleSlug::Contabilidad)) {
+        if ($user->hasPermission('payment.view_any')) {
             return true;
         }
 
@@ -26,12 +25,12 @@ class PaymentPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('payment.create');
     }
 
     public function update(User $user, Payment $payment): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('payment.update');
     }
 
     public function delete(User $user, Payment $payment): bool

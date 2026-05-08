@@ -1,21 +1,13 @@
 import { Head, Link } from '@inertiajs/react';
-import { CalendarDays, Plus } from 'lucide-react';
+import { CalendarDays, ChevronRight, Plus } from 'lucide-react';
+
 import VacationRequestController from '@/actions/App/Http/Controllers/VacationRequests/VacationRequestController';
 import { EmptyState } from '@/components/empty-state';
-import Heading from '@/components/heading';
-import { PaginationNav } from '@/components/pagination-nav';
+import { ListFooter, ListTable, PageHeader } from '@/components/idhyal';
+import type { ListFooterPaginator } from '@/components/idhyal';
 import { StatusBadge } from '@/components/status-badge';
 import { TableToolbar } from '@/components/table-toolbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import { VacationBalanceCard } from '@/components/vacation-balance-card';
 import type { VacationBalancePayload } from '@/components/vacation-balance-card';
 import AppLayout from '@/layouts/app-layout';
@@ -32,17 +24,32 @@ type ListItem = {
     created_at: string | null;
 };
 
-type Paginator = {
+type Paginator = ListFooterPaginator & {
     data: ListItem[];
-    links: { url: string | null; label: string; active: boolean }[];
-    last_page: number;
-    current_page: number;
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
     { title: 'Vacaciones', href: VacationRequestController.index.url() },
 ];
+
+const dateFormatter = new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+});
+
+function formatLong(iso: string | null): string {
+    if (!iso) {
+        return '—';
+    }
+
+    try {
+        return dateFormatter.format(new Date(iso + 'T12:00:00'));
+    } catch {
+        return iso;
+    }
+}
 
 export default function VacationRequestsIndex({
     vacationRequests,
@@ -55,119 +62,128 @@ export default function VacationRequestsIndex({
     filters: Record<string, string>;
     available_statuses: { value: string; label: string }[];
 }) {
+    const isEmpty = vacationRequests.data.length === 0;
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Solicitudes de vacaciones" />
-            <div className="flex flex-col gap-4 p-4 animate-fade-in">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <Heading
-                        title="Mis solicitudes de vacaciones"
-                        description="Periodos que has registrado en el sistema."
-                    />
-                    <Button asChild>
-                        <Link
-                            href={VacationRequestController.create.url()}
-                            prefetch
-                        >
-                            <Plus className="mr-1.5 size-4" />
-                            Nueva solicitud
-                        </Link>
-                    </Button>
-                </div>
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <PageHeader
+                    eyebrow="Vacaciones"
+                    title="Mis solicitudes de vacaciones"
+                    subtitle="Periodos que has registrado en el sistema."
+                    actions={
+                        <Button asChild>
+                            <Link
+                                href={VacationRequestController.create.url()}
+                                prefetch
+                            >
+                                <Plus />
+                                Nueva solicitud
+                            </Link>
+                        </Button>
+                    }
+                />
+
                 <VacationBalanceCard balance={vacationBalance} />
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Listado</CardTitle>
-                    </CardHeader>
-                    <div className="px-6 pb-4">
-                        <TableToolbar
-                            currentUrl={VacationRequestController.index.url()}
-                            filters={filters}
-                            searchPlaceholder="Buscar por folio…"
-                            filterDefinitions={[
-                                {
-                                    key: 'status',
-                                    label: 'Estado',
-                                    options: available_statuses,
-                                    allLabel: 'Todos los estados',
-                                },
-                            ]}
+
+                <div className="rounded-xl border border-border bg-card p-3.5">
+                    <TableToolbar
+                        currentUrl={VacationRequestController.index.url()}
+                        filters={filters}
+                        searchPlaceholder="Buscar por folio…"
+                        filterDefinitions={[
+                            {
+                                key: 'status',
+                                label: 'Estado',
+                                options: available_statuses,
+                                allLabel: 'Todos los estados',
+                            },
+                        ]}
+                    />
+                </div>
+
+                {isEmpty ? (
+                    <div className="overflow-hidden rounded-xl border border-border bg-card">
+                        <EmptyState
+                            icon={CalendarDays}
+                            title="Sin solicitudes"
+                            description="No hay solicitudes de vacaciones. Crea una nueva para iniciar el flujo de aprobación."
+                            action={
+                                <Button asChild size="sm">
+                                    <Link
+                                        href={VacationRequestController.create.url()}
+                                    >
+                                        <Plus />
+                                        Crear solicitud
+                                    </Link>
+                                </Button>
+                            }
                         />
                     </div>
-                    <CardContent>
-                        {vacationRequests.data.length === 0 ? (
-                            <EmptyState
-                                icon={CalendarDays}
-                                title="Sin solicitudes"
-                                description="No hay solicitudes de vacaciones. Crea una nueva para iniciar el flujo de aprobación."
-                                action={
-                                    <Button asChild size="sm">
+                ) : (
+                    <ListTable aria-label="Mis solicitudes de vacaciones">
+                        <thead>
+                            <tr>
+                                <th>Folio</th>
+                                <th>Periodo</th>
+                                <th className="is-num">Días hábiles</th>
+                                <th>Estado</th>
+                                <th aria-label="Acciones" />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {vacationRequests.data.map((row) => (
+                                <tr key={row.id}>
+                                    <td>
                                         <Link
-                                            href={VacationRequestController.create.url()}
+                                            href={VacationRequestController.show.url(
+                                                row.id,
+                                            )}
+                                            className="folio hover:underline"
                                         >
-                                            <Plus className="mr-1.5 size-4" />
-                                            Crear solicitud
+                                            {row.folio ?? `#${row.id}`}
                                         </Link>
-                                    </Button>
-                                }
-                            />
-                        ) : (
-                            <>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Folio</TableHead>
-                                            <TableHead>Periodo</TableHead>
-                                            <TableHead className="text-right">
-                                                Días hábiles
-                                            </TableHead>
-                                            <TableHead>Estado</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {vacationRequests.data.map((row) => (
-                                            <TableRow
-                                                key={row.id}
-                                                className="group cursor-pointer"
-                                            >
-                                                <TableCell>
-                                                    <Link
-                                                        href={VacationRequestController.show.url(
-                                                            row.id,
-                                                        )}
-                                                        className="font-medium text-primary underline-offset-4 group-hover:underline"
-                                                    >
-                                                        {row.folio ??
-                                                            `#${row.id}`}
-                                                    </Link>
-                                                </TableCell>
-                                                <TableCell className="text-muted-foreground">
-                                                    {row.starts_on ?? '—'} →{' '}
-                                                    {row.ends_on ?? '—'}
-                                                </TableCell>
-                                                <TableCell className="text-right tabular-nums">
-                                                    {row.business_days_count}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <StatusBadge
-                                                        status={row.status}
-                                                    />
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                                <PaginationNav
-                                    links={vacationRequests.links}
-                                    currentPage={
-                                        vacationRequests.current_page
-                                    }
-                                    lastPage={vacationRequests.last_page}
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                                    </td>
+                                    <td className="text-muted-foreground">
+                                        <span className="t-num">
+                                            {formatLong(row.starts_on)} →{' '}
+                                            {formatLong(row.ends_on)}
+                                        </span>
+                                    </td>
+                                    <td className="is-num">
+                                        <span className="t-num font-semibold text-foreground">
+                                            {row.business_days_count}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <StatusBadge status={row.status} />
+                                    </td>
+                                    <td className="is-num text-muted-foreground">
+                                        <Link
+                                            href={VacationRequestController.show.url(
+                                                row.id,
+                                            )}
+                                            className="inline-flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground"
+                                            aria-label={`Abrir ${row.folio ?? `#${row.id}`}`}
+                                        >
+                                            <ChevronRight className="size-4" />
+                                        </Link>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </ListTable>
+                )}
+
+                <ListFooter
+                    paginator={vacationRequests}
+                    label={
+                        vacationRequests.total === 1
+                            ? 'solicitud'
+                            : 'solicitudes'
+                    }
+                />
             </div>
         </AppLayout>
     );

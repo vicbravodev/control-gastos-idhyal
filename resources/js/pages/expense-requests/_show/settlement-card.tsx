@@ -18,11 +18,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCentsMx } from '@/lib/money';
-import {
-    DataRow,
-    type SettlementLiquidationFormState,
-    type SettlementSummary,
-    settlementStatusLabel,
+import { DataRow, settlementStatusLabel } from './types';
+import type {
+    SettlementLiquidationFormState,
+    SettlementSummary,
 } from './types';
 
 export default function SettlementCard({
@@ -73,7 +72,7 @@ export default function SettlementCard({
                         </span>
                     </DataRow>
                     <DataRow label="Diferencia">
-                        <span className="tabular-nums font-bold">
+                        <span className="font-bold tabular-nums">
                             {formatCentsMx(settlement.difference_cents)}
                         </span>
                     </DataRow>
@@ -82,9 +81,7 @@ export default function SettlementCard({
                     <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
                         <FileText className="size-4 text-muted-foreground" />
                         <span>
-                            {
-                                settlement.liquidation_evidence_original_filename
-                            }
+                            {settlement.liquidation_evidence_original_filename}
                         </span>
                         {canDownloadLiquidationReceipt &&
                             settlement.liquidation_evidence_attachment_id !=

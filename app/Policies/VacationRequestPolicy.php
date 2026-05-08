@@ -2,11 +2,13 @@
 
 namespace App\Policies;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\VacationRequestStatus;
 use App\Models\User;
 use App\Models\VacationRequest;
 use App\Models\VacationRequestApproval;
+use App\Services\Approvals\CanUserActOnApproval;
 
 class VacationRequestPolicy
 {
@@ -25,13 +27,31 @@ class VacationRequestPolicy
             return true;
         }
 
-        if ($user->role_id === null) {
-            return false;
-        }
+        return $this->hasPendingApprovalForUser($user, $vacationRequest);
+    }
 
+    private function hasPendingApprovalForUser(User $user, VacationRequest $vacationRequest): bool
+    {
         return $vacationRequest->approvals()
-            ->where('role_id', $user->role_id)
             ->where('status', ApprovalInstanceStatus::Pending)
+            ->where(function ($query) use ($user): void {
+                if ($user->role_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Role->value)
+                            ->where('approver_id', $user->role_id);
+                    });
+                }
+                if ($user->department_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Department->value)
+                            ->where('approver_id', $user->department_id);
+                    });
+                }
+                $query->orWhere(function ($q) use ($user): void {
+                    $q->where('approver_type', ApprovalApproverType::User->value)
+                        ->where('approver_id', $user->id);
+                });
+            })
             ->exists();
     }
 
@@ -101,15 +121,7 @@ class VacationRequestPolicy
             return false;
         }
 
-        if ($user->role_id === null || $approval->role_id !== $user->role_id) {
-            return false;
-        }
-
-        if ($user->id === $vacationRequest->user_id) {
-            return false;
-        }
-
-        return true;
+        return app(CanUserActOnApproval::class)->check($user, $approval);
     }
 
     private function isTerminal(VacationRequest $vacationRequest): bool

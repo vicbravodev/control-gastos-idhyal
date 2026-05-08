@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\RoleSlug;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -32,6 +31,15 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
+
+    public const PERMISSION_BYPASS_ALL = 'system.bypass_all';
+
+    /**
+     * Per-request cache for permission slugs.
+     *
+     * @var array<int, string>|null
+     */
+    protected ?array $cachedPermissionSlugs = null;
 
     /**
      * Get the attributes that should be cast.
@@ -152,27 +160,60 @@ class User extends Authenticatable
         return $this->morphMany(Budget::class, 'budgetable');
     }
 
-    public function hasRoleSlug(string $slug): bool
+    /**
+     * @return MorphMany<ApprovalPolicy, $this>
+     */
+    public function approvalPoliciesTargeting(): MorphMany
     {
-        if ($this->role_id === null) {
-            return false;
-        }
-
-        return $this->role?->slug === $slug;
-    }
-
-    public function hasRole(RoleSlug $role): bool
-    {
-        return $this->hasRoleSlug($role->value);
+        return $this->morphMany(ApprovalPolicy::class, 'appliesTo');
     }
 
     /**
-     * @param  list<RoleSlug>  $roles
+     * @return MorphMany<ApprovalPolicyStep, $this>
      */
-    public function hasAnyRole(RoleSlug ...$roles): bool
+    public function approvalPolicyStepsTargeting(): MorphMany
     {
-        foreach ($roles as $role) {
-            if ($this->hasRole($role)) {
+        return $this->morphMany(ApprovalPolicyStep::class, 'approver');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function permissionSlugs(): array
+    {
+        if ($this->cachedPermissionSlugs !== null) {
+            return $this->cachedPermissionSlugs;
+        }
+
+        if ($this->role_id === null) {
+            return $this->cachedPermissionSlugs = [];
+        }
+
+        $this->loadMissing('role.permissions:id,slug');
+
+        return $this->cachedPermissionSlugs = $this->role?->permissions
+            ->pluck('slug')
+            ->all() ?? [];
+    }
+
+    public function hasPermission(string $slug): bool
+    {
+        $slugs = $this->permissionSlugs();
+
+        if (in_array(self::PERMISSION_BYPASS_ALL, $slugs, true)) {
+            return true;
+        }
+
+        return in_array($slug, $slugs, true);
+    }
+
+    /**
+     * @param  list<string>  $slugs
+     */
+    public function hasAnyPermission(array $slugs): bool
+    {
+        foreach ($slugs as $slug) {
+            if ($this->hasPermission($slug)) {
                 return true;
             }
         }
@@ -180,33 +221,18 @@ class User extends Authenticatable
         return false;
     }
 
+    public function flushPermissionCache(): void
+    {
+        $this->cachedPermissionSlugs = null;
+    }
+
     public function hasExpenseRequestOversight(): bool
     {
-        return $this->hasAnyRole(
-            RoleSlug::SuperAdmin,
-            RoleSlug::Contabilidad,
-            RoleSlug::SecretarioGeneral,
-            RoleSlug::CoordRegional,
-            RoleSlug::CoordEstatal,
-        );
+        return $this->hasPermission('expense_request.oversight');
     }
 
     public function hasVacationRequestOversight(): bool
     {
-        return $this->hasAnyRole(
-            RoleSlug::SuperAdmin,
-            RoleSlug::SecretarioGeneral,
-            RoleSlug::CoordRegional,
-            RoleSlug::CoordEstatal,
-        );
-    }
-
-    public function canManageBudgetsAndPolicies(): bool
-    {
-        return $this->hasAnyRole(
-            RoleSlug::SuperAdmin,
-            RoleSlug::Contabilidad,
-            RoleSlug::SecretarioGeneral,
-        );
+        return $this->hasPermission('vacation_request.oversight');
     }
 }

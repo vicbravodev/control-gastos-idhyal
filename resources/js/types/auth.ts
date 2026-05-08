@@ -14,10 +14,13 @@ export type User = {
     created_at: string;
     updated_at: string;
     role?: AuthRole | null;
+    permissions?: string[];
     has_expense_request_oversight?: boolean;
+    has_vacation_request_oversight?: boolean;
     can_manage_budgets?: boolean;
     can_manage_approval_policies?: boolean;
     can_manage_vacation_rules?: boolean;
+    can_manage_roles?: boolean;
     can_view_reports?: boolean;
     unread_notifications_count?: number;
     [key: string]: unknown;

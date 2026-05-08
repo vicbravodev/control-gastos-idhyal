@@ -31,7 +31,7 @@ export default function AdminRegionsCreate() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Nueva región" />
-            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 animate-fade-in">
+            <div className="relative mx-auto flex w-full max-w-2xl animate-fade-in flex-col gap-4 p-4">
                 <Heading
                     title="Nueva región"
                     description="Código estable (p. ej. interno o clave corta) y nombre visible."
@@ -43,10 +43,7 @@ export default function AdminRegionsCreate() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={submit}
-                            className="flex flex-col gap-5"
-                        >
+                        <form onSubmit={submit} className="flex flex-col gap-5">
                             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="code">Código</Label>

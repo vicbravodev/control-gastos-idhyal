@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
-use App\Enums\CombineWithNext;
+use App\Enums\ApprovalApproverType;
+use App\Enums\ApprovalStepMode;
 use Database\Factories\ApprovalPolicyStepFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ApprovalPolicyStep extends Model
 {
@@ -19,8 +21,9 @@ class ApprovalPolicyStep extends Model
     protected $fillable = [
         'approval_policy_id',
         'step_order',
-        'role_id',
-        'combine_with_next',
+        'approver_type',
+        'approver_id',
+        'step_mode',
     ];
 
     /**
@@ -29,7 +32,8 @@ class ApprovalPolicyStep extends Model
     protected function casts(): array
     {
         return [
-            'combine_with_next' => CombineWithNext::class,
+            'approver_type' => ApprovalApproverType::class,
+            'step_mode' => ApprovalStepMode::class,
         ];
     }
 
@@ -42,10 +46,10 @@ class ApprovalPolicyStep extends Model
     }
 
     /**
-     * @return BelongsTo<Role, $this>
+     * @return MorphTo<Model, $this>
      */
-    public function role(): BelongsTo
+    public function approver(): MorphTo
     {
-        return $this->belongsTo(Role::class);
+        return $this->morphTo();
     }
 }

@@ -1,10 +1,5 @@
 import { StatusBadge } from '@/components/status-badge';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { formatCentsMx } from '@/lib/money';
 import { DataRow } from './types';
@@ -57,12 +52,12 @@ export default function RequestDetailCard({
                 </div>
                 <Separator className="my-4" />
                 <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <p className="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
                         Concepto
                     </p>
                     <p className="text-sm font-medium">{conceptLabel}</p>
                     {conceptDescription ? (
-                        <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                        <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">
                             {conceptDescription}
                         </p>
                     ) : null}

@@ -1,8 +1,9 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import ApprovalPolicyController from '@/actions/App/Http/Controllers/ApprovalPolicies/ApprovalPolicyController';
+import { ApproverPicker } from '@/components/approval-policies/approver-picker';
 import ConfirmationDialog from '@/components/confirmation-dialog';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
     Select,
     SelectContent,
@@ -19,49 +21,57 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import { buildChainPreview } from '@/lib/approval-chain-preview';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
 type RoleOption = { id: number; name: string };
 type DocumentTypeOption = { value: string; label: string };
+type StepModeOption = { value: string; label: string };
 
 type StepData = {
-    role_id: string;
-    combine_with_next: string;
+    approver_type: 'role' | 'department' | 'user';
+    approver_id: string;
+    approver_label: string;
+    step_mode: string;
 };
+
+type AppliesToType = 'all' | 'role' | 'department' | 'user';
 
 type PolicyData = {
     id: number;
     document_type: string;
     name: string;
     version: number;
-    requester_role_id: number | null;
+    applies_to_type: string | null;
+    applies_to_id: number | null;
+    applies_to_label: string | null;
     effective_from: string | null;
     effective_to: string | null;
     is_active: boolean;
-    steps: { role_id: number; combine_with_next: string }[];
-};
-
-type PolicyFormData = {
-    document_type: string;
-    name: string;
-    version: number;
-    requester_role_id: string;
-    effective_from: string;
-    effective_to: string;
-    is_active: boolean;
-    steps: StepData[];
+    steps: {
+        approver_type: string;
+        approver_id: number;
+        approver_label: string;
+        step_mode: string;
+    }[];
 };
 
 export default function ApprovalPoliciesEdit({
     policy,
     roles,
+    departments,
     documentTypes,
+    stepModes,
+    userSearchUrl,
     can,
 }: {
     policy: PolicyData;
     roles: RoleOption[];
+    departments: RoleOption[];
     documentTypes: DocumentTypeOption[];
+    stepModes: StepModeOption[];
+    userSearchUrl: string;
     can: { delete: boolean };
 }) {
     const breadcrumbs: BreadcrumbItem[] = [
@@ -71,34 +81,97 @@ export default function ApprovalPoliciesEdit({
             href: ApprovalPolicyController.index.url(),
         },
         {
-            title: 'Editar',
+            title: policy.name,
             href: ApprovalPolicyController.edit.url(policy.id),
         },
     ];
 
-    const { data, setData, put, processing, errors } = useForm<PolicyFormData>({
+    const initialKind: AppliesToType =
+        policy.applies_to_type === null
+            ? 'all'
+            : (policy.applies_to_type as AppliesToType);
+
+    const { data, setData, transform, patch, processing, errors } = useForm({
         document_type: policy.document_type,
         name: policy.name,
         version: policy.version,
-        requester_role_id: policy.requester_role_id
-            ? String(policy.requester_role_id)
-            : '',
+        applies_to_kind: initialKind,
+        applies_to_id:
+            policy.applies_to_id !== null ? String(policy.applies_to_id) : '',
+        applies_to_user_label: policy.applies_to_label ?? '',
         effective_from: policy.effective_from ?? '',
         effective_to: policy.effective_to ?? '',
         is_active: policy.is_active,
         steps: policy.steps.map((s) => ({
-            role_id: String(s.role_id),
-            combine_with_next: s.combine_with_next,
-        })),
+            approver_type: s.approver_type as 'role' | 'department' | 'user',
+            approver_id: String(s.approver_id),
+            approver_label: s.approver_label,
+            step_mode: s.step_mode,
+        })) as StepData[],
     });
+
+    transform((d) => ({
+        document_type: d.document_type,
+        name: d.name,
+        version: d.version,
+        applies_to_type: d.applies_to_kind === 'all' ? null : d.applies_to_kind,
+        applies_to_id: d.applies_to_kind === 'all' ? null : d.applies_to_id,
+        effective_from: d.effective_from,
+        effective_to: d.effective_to,
+        is_active: d.is_active,
+        steps: d.steps.map((s) => ({
+            approver_type: s.approver_type,
+            approver_id: s.approver_id,
+            step_mode: s.step_mode,
+        })),
+    }));
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const lastStepIndex = data.steps.length - 1;
+
+    const preview = useMemo(
+        () =>
+            buildChainPreview(
+                data.steps.map((s) => ({
+                    approver_type: s.approver_type,
+                    approver_id: s.approver_id,
+                    step_mode: s.step_mode,
+                })),
+                (type, id) => {
+                    if (!id) {
+                        return undefined;
+                    }
+
+                    if (type === 'role') {
+                        return roles.find((r) => String(r.id) === String(id))
+                            ?.name;
+                    }
+
+                    if (type === 'department') {
+                        return departments.find(
+                            (d) => String(d.id) === String(id),
+                        )?.name;
+                    }
+
+                    return data.steps.find(
+                        (s) =>
+                            s.approver_type === 'user' && s.approver_id === id,
+                    )?.approver_label;
+                },
+            ),
+        [data.steps, roles, departments],
+    );
 
     function addStep() {
         setData('steps', [
             ...data.steps,
-            { role_id: '', combine_with_next: 'and' },
+            {
+                approver_type: 'role',
+                approver_id: '',
+                approver_label: '',
+                step_mode: 'sequential',
+            },
         ]);
     }
 
@@ -113,21 +186,17 @@ export default function ApprovalPoliciesEdit({
         );
     }
 
-    function updateStep(index: number, field: keyof StepData, value: string) {
+    function updateStep(index: number, p: Partial<StepData>) {
         const updated = [...data.steps];
-        updated[index] = { ...updated[index], [field]: value };
+        updated[index] = { ...updated[index], ...p };
         setData('steps', updated);
     }
 
     function submit(e: FormEvent) {
         e.preventDefault();
-        put(ApprovalPolicyController.update.url(policy.id), {
+        patch(ApprovalPolicyController.update.url(policy.id), {
             preserveScroll: true,
         });
-    }
-
-    function handleDelete() {
-        setShowDeleteDialog(true);
     }
 
     function handleConfirmDelete() {
@@ -146,11 +215,11 @@ export default function ApprovalPoliciesEdit({
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`Editar: ${policy.name}`} />
+            <Head title={`Editar política — ${policy.name}`} />
             <div className="mx-auto flex w-full max-w-3xl animate-fade-in flex-col gap-4 p-4">
                 <Heading
                     title="Editar política de aprobación"
-                    description="Modifica los datos y la cadena de pasos de aprobación."
+                    description="Ajuste a quién aplica y los pasos de aprobación."
                 />
                 <form onSubmit={submit} className="flex flex-col gap-6">
                     <Card>
@@ -170,20 +239,17 @@ export default function ApprovalPoliciesEdit({
                                 />
                                 <InputError message={errors.name} />
                             </div>
-
                             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="document_type">
-                                        Tipo de documento
-                                    </Label>
+                                    <Label>Tipo de documento</Label>
                                     <Select
                                         value={data.document_type}
                                         onValueChange={(v) =>
                                             setData('document_type', v)
                                         }
                                     >
-                                        <SelectTrigger id="document_type">
-                                            <SelectValue placeholder="Selecciona" />
+                                        <SelectTrigger>
+                                            <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {documentTypes.map((dt) => (
@@ -196,11 +262,7 @@ export default function ApprovalPoliciesEdit({
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <InputError
-                                        message={errors.document_type}
-                                    />
                                 </div>
-
                                 <div className="grid gap-2">
                                     <Label htmlFor="version">Versión</Label>
                                     <Input
@@ -216,49 +278,124 @@ export default function ApprovalPoliciesEdit({
                                         }
                                         required
                                     />
-                                    <InputError message={errors.version} />
                                 </div>
                             </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="requester_role_id">
-                                    Rol del solicitante (opcional)
-                                </Label>
-                                <Select
-                                    value={data.requester_role_id || '__none__'}
-                                    onValueChange={(v) =>
+                            <div className="grid gap-3">
+                                <Label>¿A quién aplica esta política?</Label>
+                                <RadioGroup
+                                    value={data.applies_to_kind}
+                                    onValueChange={(v) => {
                                         setData(
-                                            'requester_role_id',
-                                            v === '__none__' ? '' : v,
-                                        )
-                                    }
+                                            'applies_to_kind',
+                                            v as AppliesToType,
+                                        );
+                                        setData('applies_to_id', '');
+                                        setData('applies_to_user_label', '');
+                                    }}
+                                    className="flex flex-col gap-2"
                                 >
-                                    <SelectTrigger id="requester_role_id">
-                                        <SelectValue placeholder="Todos los roles" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="__none__">
-                                            Todos los roles
-                                        </SelectItem>
-                                        {roles.map((role) => (
-                                            <SelectItem
-                                                key={role.id}
-                                                value={String(role.id)}
-                                            >
-                                                {role.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    Deja en &quot;Todos&quot; para usarla como
-                                    política por defecto.
-                                </p>
-                                <InputError
-                                    message={errors.requester_role_id}
-                                />
+                                    <div className="flex items-center gap-2">
+                                        <RadioGroupItem
+                                            value="all"
+                                            id="applies-all"
+                                        />
+                                        <Label htmlFor="applies-all">
+                                            A todos (por defecto)
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <RadioGroupItem
+                                            value="role"
+                                            id="applies-role"
+                                        />
+                                        <Label htmlFor="applies-role">
+                                            A un rol específico
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <RadioGroupItem
+                                            value="department"
+                                            id="applies-dep"
+                                        />
+                                        <Label htmlFor="applies-dep">
+                                            A un departamento
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <RadioGroupItem
+                                            value="user"
+                                            id="applies-user"
+                                        />
+                                        <Label htmlFor="applies-user">
+                                            A un usuario específico
+                                        </Label>
+                                    </div>
+                                </RadioGroup>
+                                {data.applies_to_kind === 'role' ? (
+                                    <Select
+                                        value={data.applies_to_id}
+                                        onValueChange={(v) =>
+                                            setData('applies_to_id', v)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecciona un rol" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {roles.map((r) => (
+                                                <SelectItem
+                                                    key={r.id}
+                                                    value={String(r.id)}
+                                                >
+                                                    {r.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : null}
+                                {data.applies_to_kind === 'department' ? (
+                                    <Select
+                                        value={data.applies_to_id}
+                                        onValueChange={(v) =>
+                                            setData('applies_to_id', v)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecciona un departamento" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {departments.map((d) => (
+                                                <SelectItem
+                                                    key={d.id}
+                                                    value={String(d.id)}
+                                                >
+                                                    {d.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : null}
+                                {data.applies_to_kind === 'user' ? (
+                                    <ApproverPicker
+                                        value={{
+                                            type: 'user',
+                                            id: data.applies_to_id,
+                                            label: data.applies_to_user_label,
+                                        }}
+                                        roles={roles}
+                                        departments={departments}
+                                        userSearchUrl={userSearchUrl}
+                                        onChange={(v) => {
+                                            setData('applies_to_id', v.id);
+                                            setData(
+                                                'applies_to_user_label',
+                                                v.label ?? '',
+                                            );
+                                        }}
+                                    />
+                                ) : null}
+                                <InputError message={errors.applies_to_id} />
                             </div>
-
                             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="effective_from">
@@ -274,9 +411,6 @@ export default function ApprovalPoliciesEdit({
                                                 e.target.value,
                                             )
                                         }
-                                    />
-                                    <InputError
-                                        message={errors.effective_from}
                                     />
                                 </div>
                                 <div className="grid gap-2">
@@ -294,10 +428,8 @@ export default function ApprovalPoliciesEdit({
                                             )
                                         }
                                     />
-                                    <InputError message={errors.effective_to} />
                                 </div>
                             </div>
-
                             <div className="flex items-center gap-2">
                                 <Checkbox
                                     id="is_active"
@@ -306,18 +438,16 @@ export default function ApprovalPoliciesEdit({
                                         setData('is_active', v === true)
                                     }
                                 />
-                                <Label htmlFor="is_active" className="text-sm">
+                                <Label htmlFor="is_active">
                                     Política activa
                                 </Label>
                             </div>
-                            <InputError message={errors.is_active} />
                         </CardContent>
                     </Card>
-
                     <Card>
                         <CardHeader>
                             <div className="flex items-center justify-between">
-                                <CardTitle>Pasos de aprobación</CardTitle>
+                                <CardTitle>Quién aprueba</CardTitle>
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -334,115 +464,103 @@ export default function ApprovalPoliciesEdit({
                             {data.steps.map((step, index) => (
                                 <div
                                     key={index}
-                                    className="flex items-start gap-3 rounded-lg border p-3"
+                                    className="flex flex-col gap-3 rounded-lg border p-4"
                                 >
-                                    <span className="mt-2 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                                        {index + 1}
-                                    </span>
-                                    <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-start">
-                                        <div className="grid flex-1 gap-1">
-                                            <Label className="text-xs text-muted-foreground">
-                                                Rol aprobador
-                                            </Label>
-                                            <Select
-                                                value={step.role_id}
-                                                onValueChange={(v) =>
-                                                    updateStep(
-                                                        index,
-                                                        'role_id',
-                                                        v,
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Selecciona rol" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {roles.map((role) => (
-                                                        <SelectItem
-                                                            key={role.id}
-                                                            value={String(
-                                                                role.id,
-                                                            )}
-                                                        >
-                                                            {role.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError
-                                                message={
-                                                    errors[
-                                                        `steps.${index}.role_id` as keyof typeof errors
-                                                    ]
-                                                }
-                                            />
-                                        </div>
-                                        <div className="grid w-full gap-1 sm:w-32">
-                                            <Label className="text-xs text-muted-foreground">
-                                                Combinar
-                                            </Label>
-                                            <Select
-                                                value={step.combine_with_next}
-                                                onValueChange={(v) =>
-                                                    updateStep(
-                                                        index,
-                                                        'combine_with_next',
-                                                        v,
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="and">
-                                                        Y (AND)
-                                                    </SelectItem>
-                                                    <SelectItem value="or">
-                                                        O (OR)
-                                                    </SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="mt-5 shrink-0"
-                                        disabled={data.steps.length <= 1}
-                                        onClick={() => removeStep(index)}
-                                    >
-                                        <Trash2 className="size-4 text-destructive" />
-                                        <span className="sr-only">
-                                            Eliminar paso
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold">
+                                            Paso {index + 1}
                                         </span>
-                                    </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={data.steps.length <= 1}
+                                            onClick={() => removeStep(index)}
+                                        >
+                                            <Trash2 className="size-4 text-destructive" />
+                                        </Button>
+                                    </div>
+                                    <ApproverPicker
+                                        value={{
+                                            type: step.approver_type,
+                                            id: step.approver_id,
+                                            label: step.approver_label,
+                                        }}
+                                        roles={roles}
+                                        departments={departments}
+                                        userSearchUrl={userSearchUrl}
+                                        onChange={(v) =>
+                                            updateStep(index, {
+                                                approver_type: v.type,
+                                                approver_id: v.id,
+                                                approver_label: v.label ?? '',
+                                            })
+                                        }
+                                    />
+                                    {index < lastStepIndex ? (
+                                        <div className="flex flex-col gap-2 border-t pt-3">
+                                            <Label className="text-xs text-muted-foreground">
+                                                Y después del paso {index + 1}…
+                                            </Label>
+                                            <RadioGroup
+                                                value={step.step_mode}
+                                                onValueChange={(v) =>
+                                                    updateStep(index, {
+                                                        step_mode: v,
+                                                    })
+                                                }
+                                                className="flex flex-col gap-1"
+                                            >
+                                                {stepModes.map((m) => (
+                                                    <div
+                                                        key={m.value}
+                                                        className="flex items-start gap-2"
+                                                    >
+                                                        <RadioGroupItem
+                                                            value={m.value}
+                                                            id={`mode-${index}-${m.value}`}
+                                                            className="mt-1"
+                                                        />
+                                                        <Label
+                                                            htmlFor={`mode-${index}-${m.value}`}
+                                                            className="text-sm font-normal"
+                                                        >
+                                                            {m.label}
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </RadioGroup>
+                                        </div>
+                                    ) : null}
                                 </div>
                             ))}
+                            <div className="rounded-md border bg-muted/30 p-3">
+                                <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                                    Vista previa
+                                </p>
+                                <p className="mt-1 text-sm">{preview}</p>
+                            </div>
                         </CardContent>
                     </Card>
-
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <Button type="submit" disabled={processing}>
-                            {processing ? 'Guardando…' : 'Guardar cambios'}
+                            Guardar cambios
                         </Button>
                         <Button variant="outline" type="button" asChild>
                             <Link href={ApprovalPolicyController.index.url()}>
-                                Cancelar
+                                Volver
                             </Link>
                         </Button>
-                        {can.delete && (
+                        {can.delete ? (
                             <Button
                                 type="button"
                                 variant="destructive"
-                                className="ml-auto"
-                                onClick={handleDelete}
+                                className="ms-auto"
+                                onClick={() => setShowDeleteDialog(true)}
                             >
-                                Eliminar política
+                                Eliminar
                             </Button>
-                        )}
+                        ) : null}
                     </div>
                 </form>
             </div>
@@ -454,7 +572,7 @@ export default function ApprovalPoliciesEdit({
                     }
                 }}
                 title="Eliminar política"
-                description="¿Eliminar esta política? Esta acción no se puede deshacer."
+                description="¿Eliminar esta política de aprobación?"
                 confirmLabel="Eliminar"
                 variant="destructive"
                 processing={deleting}

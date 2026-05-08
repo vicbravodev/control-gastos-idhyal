@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\VacationRequests;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\VacationRequestStatus;
 use App\Http\Controllers\Controller;
@@ -23,35 +24,55 @@ class VacationRequestApprovalController extends Controller
         $user = $request->user();
         $items = [];
 
-        if ($user->role_id !== null) {
-            $candidates = VacationRequestApproval::query()
-                ->where('status', ApprovalInstanceStatus::Pending)
-                ->where('role_id', $user->role_id)
-                ->whereHas('vacationRequest', fn ($q) => $q->where('status', VacationRequestStatus::ApprovalInProgress))
-                ->with(['vacationRequest.user', 'role'])
-                ->orderByDesc('id')
-                ->get();
+        $candidates = VacationRequestApproval::query()
+            ->where('status', ApprovalInstanceStatus::Pending)
+            ->where(function ($query) use ($user): void {
+                if ($user->role_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Role->value)
+                            ->where('approver_id', $user->role_id);
+                    });
+                }
+                if ($user->department_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Department->value)
+                            ->where('approver_id', $user->department_id);
+                    });
+                }
+                $query->orWhere(function ($q) use ($user): void {
+                    $q->where('approver_type', ApprovalApproverType::User->value)
+                        ->where('approver_id', $user->id);
+                });
+            })
+            ->whereHas('vacationRequest', fn ($q) => $q->where('status', VacationRequestStatus::ApprovalInProgress))
+            ->with(['vacationRequest.user', 'approver'])
+            ->orderByDesc('id')
+            ->get();
 
-            foreach ($candidates as $approval) {
-                if (! $approvalService->isPendingStepActive($approval)) {
-                    continue;
-                }
-                if (! $user->can('approve', $approval)) {
-                    continue;
-                }
-                $vacation = $approval->vacationRequest;
-                $items[] = [
-                    'approval_id' => $approval->id,
-                    'vacation_request_id' => $vacation->id,
-                    'folio' => $vacation->folio,
-                    'starts_on' => $vacation->starts_on?->toDateString(),
-                    'ends_on' => $vacation->ends_on?->toDateString(),
-                    'business_days_count' => $vacation->business_days_count,
-                    'requester_name' => $vacation->user->name,
-                    'step_order' => $approval->step_order,
-                    'role_name' => $approval->role->name,
-                ];
+        foreach ($candidates as $approval) {
+            if (! $approvalService->isPendingStepActive($approval)) {
+                continue;
             }
+            if (! $user->can('approve', $approval)) {
+                continue;
+            }
+            $vacation = $approval->vacationRequest;
+            $entity = $approval->approver;
+            $items[] = [
+                'approval_id' => $approval->id,
+                'vacation_request_id' => $vacation->id,
+                'folio' => $vacation->folio,
+                'starts_on' => $vacation->starts_on?->toDateString(),
+                'ends_on' => $vacation->ends_on?->toDateString(),
+                'business_days_count' => $vacation->business_days_count,
+                'requester_name' => $vacation->user->name,
+                'step_order' => $approval->step_order,
+                'approver_label' => sprintf(
+                    '%s: %s',
+                    $approval->approver_type->label(),
+                    $entity?->name ?? '—',
+                ),
+            ];
         }
 
         return Inertia::render('vacation-requests/approvals/pending', [

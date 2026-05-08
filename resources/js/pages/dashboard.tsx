@@ -1,21 +1,21 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    ArrowRight,
     CalendarDays,
+    ChevronRight,
     ClipboardList,
     Plus,
+    Zap,
 } from 'lucide-react';
+
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
 import VacationRequestController from '@/actions/App/Http/Controllers/VacationRequests/VacationRequestController';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { HeroCard, QuickCard, StatCard } from '@/components/idhyal';
+import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { formatCentsMx } from '@/lib/money';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
@@ -26,130 +26,265 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+type ExpenseStats = {
+    active: number;
+    pending_approval: number;
+    in_flight_amount_cents: number;
+};
+
+type RecentExpense = {
+    id: number;
+    folio: string;
+    concept_label: string;
+    status: string;
+    requested_amount_cents: number;
+};
+
+type DashboardPageProps = {
+    expenseStats?: ExpenseStats;
+    recentExpenses?: RecentExpense[];
+    auth?: { user?: { name?: string } };
+};
+
+const DEFAULT_STATS: ExpenseStats = {
+    active: 0,
+    pending_approval: 0,
+    in_flight_amount_cents: 0,
+};
+
 export default function Dashboard() {
-    const { auth } = usePage().props;
-    const userName = (auth as { user?: { name?: string } })?.user?.name ?? 'Usuario';
+    const { auth, expenseStats, recentExpenses } =
+        usePage<DashboardPageProps>().props;
+    const userName = auth?.user?.name ?? 'Usuario';
     const firstName = userName.split(' ')[0];
+    const stats = expenseStats ?? DEFAULT_STATS;
+    const recents = recentExpenses ?? [];
+    const hasPending = stats.pending_approval > 0;
+    const hasRecents = recents.length > 0;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
-            <div className="flex flex-col gap-4 p-4 animate-fade-in">
-                <div className="flex items-start gap-4">
-                    <div className="hidden shrink-0 rounded-xl border border-border/70 bg-white p-3 shadow-sm sm:block dark:border-white/15 dark:bg-white">
-                        <AppLogoIcon className="h-16 w-auto max-w-[5.5rem] sm:h-[4.5rem]" />
-                    </div>
-                    <div className="min-w-0">
-                        <h1 className="text-2xl font-semibold tracking-tight">
-                            Bienvenido, {firstName}
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Panel de control de gastos y solicitudes.
-                        </p>
-                    </div>
-                </div>
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <HeroCard
+                    emblem={
+                        <AppLogoIcon className="h-full w-auto object-contain" />
+                    }
+                    title={`Bienvenido, ${firstName}`}
+                    subtitle="Panel de control de gastos y solicitudes de IDHYAL."
+                    actions={
+                        <Button asChild>
+                            <Link href={ExpenseRequestController.create.url()}>
+                                <Plus />
+                                Nueva solicitud
+                            </Link>
+                        </Button>
+                    }
+                />
 
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <Card className="group relative overflow-hidden transition-shadow hover:shadow-md">
-                        <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-primary/5 transition-transform group-hover:scale-150" />
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center gap-3">
-                                <div className="rounded-lg bg-primary/10 p-2">
-                                    <ClipboardList className="size-5 text-primary" />
-                                </div>
-                                <CardTitle className="text-base">
-                                    Solicitudes de gasto
-                                </CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <CardDescription className="mb-4">
-                                Crea y da seguimiento a tus solicitudes de gasto.
-                            </CardDescription>
-                            <div className="flex flex-wrap gap-2">
-                                <Button size="sm" asChild>
-                                    <Link href={ExpenseRequestController.create.url()}>
-                                        <Plus className="mr-1 size-3.5" />
+                <div className="grid gap-4 lg:grid-cols-3">
+                    <QuickCard
+                        tone="blue"
+                        icon={<ClipboardList className="size-5" aria-hidden />}
+                        title="Solicitudes de gasto"
+                        description="Crea y da seguimiento a tus solicitudes de gasto."
+                        actions={
+                            <>
+                                <Button asChild size="sm">
+                                    <Link
+                                        href={ExpenseRequestController.create.url()}
+                                    >
+                                        <Plus />
                                         Nueva solicitud
                                     </Link>
                                 </Button>
-                                <Button size="sm" variant="outline" asChild>
-                                    <Link href={ExpenseRequestController.index.url()}>
+                                <Button asChild size="sm" variant="outline">
+                                    <Link
+                                        href={ExpenseRequestController.index.url()}
+                                    >
                                         Ver listado
                                     </Link>
                                 </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </>
+                        }
+                    />
 
-                    <Card className="group relative overflow-hidden transition-shadow hover:shadow-md">
-                        <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-accent/10 transition-transform group-hover:scale-150" />
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center gap-3">
-                                <div className="rounded-lg bg-accent/15 p-2">
-                                    <CalendarDays className="size-5 text-accent-foreground" />
-                                </div>
-                                <CardTitle className="text-base">
-                                    Vacaciones
-                                </CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <CardDescription className="mb-4">
-                                Registra y consulta tus periodos vacacionales.
-                            </CardDescription>
-                            <div className="flex flex-wrap gap-2">
-                                <Button size="sm" asChild>
-                                    <Link href={VacationRequestController.create.url()}>
-                                        <Plus className="mr-1 size-3.5" />
+                    <QuickCard
+                        tone="gold"
+                        icon={<CalendarDays className="size-5" aria-hidden />}
+                        title="Vacaciones"
+                        description="Registra y consulta tus periodos vacacionales."
+                        actions={
+                            <>
+                                <Button asChild size="sm">
+                                    <Link
+                                        href={VacationRequestController.create.url()}
+                                    >
+                                        <Plus />
                                         Nueva solicitud
                                     </Link>
                                 </Button>
-                                <Button size="sm" variant="outline" asChild>
-                                    <Link href={VacationRequestController.index.url()}>
+                                <Button asChild size="sm" variant="outline">
+                                    <Link
+                                        href={VacationRequestController.index.url()}
+                                    >
                                         Ver listado
                                     </Link>
                                 </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </>
+                        }
+                    />
 
-                    <Card className="group relative overflow-hidden transition-shadow hover:shadow-md sm:col-span-2 lg:col-span-1">
-                        <div className="absolute top-0 right-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-muted transition-transform group-hover:scale-150" />
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-base">
-                                Acceso rápido
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <CardDescription className="mb-4">
-                                Navega directamente a las secciones del sistema.
-                            </CardDescription>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="justify-start"
-                                    asChild
-                                >
-                                    <Link href={ExpenseRequestController.index.url()}>
+                    <QuickCard
+                        tone="muted"
+                        icon={<Zap className="size-5" aria-hidden />}
+                        title="Acceso rápido"
+                        description="Navega directamente a las secciones del sistema."
+                        actions={
+                            <>
+                                <Button asChild size="sm" variant="outline">
+                                    <Link
+                                        href={ExpenseRequestController.index.url()}
+                                    >
                                         Mis gastos
                                     </Link>
                                 </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="justify-start"
-                                    asChild
-                                >
-                                    <Link href={VacationRequestController.index.url()}>
+                                <Button asChild size="sm" variant="outline">
+                                    <Link
+                                        href={VacationRequestController.index.url()}
+                                    >
                                         Mis vacaciones
                                     </Link>
                                 </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </>
+                        }
+                    />
                 </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <StatCard
+                        label="Solicitudes activas"
+                        value={stats.active}
+                        hint="En curso ahora mismo"
+                        footer={
+                            <Button
+                                asChild
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-[var(--brand-blue-700)]"
+                            >
+                                <Link
+                                    href={ExpenseRequestController.index.url()}
+                                >
+                                    Ver listado <ArrowRight />
+                                </Link>
+                            </Button>
+                        }
+                    />
+                    <StatCard
+                        label="Pendientes de tu aprobación"
+                        value={stats.pending_approval}
+                        delta={hasPending ? 'Requieren atención' : undefined}
+                        deltaTone={hasPending ? 'negative' : 'neutral'}
+                    />
+                    <StatCard
+                        label="Monto en curso"
+                        value={formatCentsMx(stats.in_flight_amount_cents)}
+                        hint="Solicitudes en proceso"
+                    />
+                </div>
+
+                <section className="overflow-hidden rounded-xl border border-border bg-card">
+                    <header className="flex items-center gap-3 border-b border-border px-5 py-3.5">
+                        <ClipboardList
+                            className="size-4 text-[var(--brand-blue-600)]"
+                            aria-hidden
+                        />
+                        <h2 className="text-sm font-semibold">
+                            Actividad reciente
+                        </h2>
+                        <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
+                            className="ml-auto"
+                        >
+                            <Link href={ExpenseRequestController.index.url()}>
+                                Ver todo
+                            </Link>
+                        </Button>
+                    </header>
+                    {hasRecents ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-[var(--card-soft)] text-[11px] tracking-wider text-muted-foreground uppercase">
+                                    <tr>
+                                        <th className="px-4 py-2.5 text-left font-semibold">
+                                            Folio
+                                        </th>
+                                        <th className="px-4 py-2.5 text-left font-semibold">
+                                            Concepto
+                                        </th>
+                                        <th className="px-4 py-2.5 text-right font-semibold">
+                                            Monto
+                                        </th>
+                                        <th className="px-4 py-2.5 text-left font-semibold">
+                                            Estado
+                                        </th>
+                                        <th className="px-4 py-2.5" />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {recents.map((row) => (
+                                        <tr
+                                            key={row.id}
+                                            className="border-t border-border transition-colors hover:bg-[var(--card-soft)]"
+                                        >
+                                            <td className="px-4 py-3">
+                                                <Link
+                                                    href={ExpenseRequestController.show.url(
+                                                        row.id,
+                                                    )}
+                                                    className="t-folio text-[var(--brand-blue-700)]"
+                                                >
+                                                    {row.folio}
+                                                </Link>
+                                            </td>
+                                            <td className="px-4 py-3 text-muted-foreground">
+                                                {row.concept_label}
+                                            </td>
+                                            <td className="t-num px-4 py-3 text-right font-semibold">
+                                                {formatCentsMx(
+                                                    row.requested_amount_cents,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <StatusBadge
+                                                    status={row.status}
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-muted-foreground">
+                                                <ChevronRight
+                                                    className="size-4"
+                                                    aria-hidden
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+                            <p className="font-medium text-foreground">
+                                Aún no has creado solicitudes
+                            </p>
+                            <p className="mt-1">
+                                Cuando registres tu primera, aparecerá aquí.
+                            </p>
+                        </div>
+                    )}
+                </section>
             </div>
         </AppLayout>
     );

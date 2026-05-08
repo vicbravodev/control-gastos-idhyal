@@ -102,7 +102,11 @@ export default function SubmissionAttachmentsCard({
                         className="space-y-3 border-t pt-4"
                         onSubmit={(e) => {
                             e.preventDefault();
-                            if (form.data.attachments.length === 0) return;
+
+                            if (form.data.attachments.length === 0) {
+                                return;
+                            }
+
                             form.post(
                                 ExpenseRequestController.storeSubmissionAttachments.url(
                                     expenseRequestId,
@@ -147,14 +151,19 @@ export default function SubmissionAttachmentsCard({
             <ConfirmationDialog
                 open={deleteTarget !== null}
                 onOpenChange={(open) => {
-                    if (!open) setDeleteTarget(null);
+                    if (!open) {
+                        setDeleteTarget(null);
+                    }
                 }}
                 title="¿Eliminar este archivo?"
                 description="El archivo adjunto se eliminará permanentemente."
                 confirmLabel="Eliminar"
                 variant="destructive"
                 onConfirm={() => {
-                    if (deleteTarget === null) return;
+                    if (deleteTarget === null) {
+                        return;
+                    }
+
                     router.delete(
                         ExpenseRequestController.destroySubmissionAttachment.url(
                             {

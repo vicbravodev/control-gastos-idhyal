@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\ApprovalPolicyDocumentType;
-use App\Enums\CombineWithNext;
+use App\Enums\ApprovalStepMode;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
 use App\Models\Role;
@@ -24,7 +24,8 @@ class ApprovalPolicySeeder extends Seeder
             [
                 'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
                 'name' => 'Gastos — coordinador regional y contabilidad',
-                'requester_role_id' => null,
+                'applies_to_type' => null,
+                'applies_to_id' => null,
                 'version' => 1,
             ],
             [
@@ -39,21 +40,24 @@ class ApprovalPolicySeeder extends Seeder
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $expensePolicy->id,
             'step_order' => 1,
-            'role_id' => $coordRegional->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coordRegional->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $expensePolicy->id,
             'step_order' => 2,
-            'role_id' => $contabilidad->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $contabilidad->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $vacationPolicy = ApprovalPolicy::query()->updateOrCreate(
             [
                 'document_type' => ApprovalPolicyDocumentType::VacationRequest->value,
                 'name' => 'Vacaciones — secretario general',
-                'requester_role_id' => null,
+                'applies_to_type' => null,
+                'applies_to_id' => null,
                 'version' => 1,
             ],
             [
@@ -68,8 +72,9 @@ class ApprovalPolicySeeder extends Seeder
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $vacationPolicy->id,
             'step_order' => 1,
-            'role_id' => $secretario->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $secretario->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
     }
 }

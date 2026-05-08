@@ -133,9 +133,7 @@ export default function ExpenseReportSubmitCard({
                                 required
                             />
                             <InputError
-                                message={
-                                    draftForm.errors.reported_amount_cents
-                                }
+                                message={draftForm.errors.reported_amount_cents}
                             />
                         </div>
                         <div className="grid gap-2">
@@ -176,9 +174,7 @@ export default function ExpenseReportSubmitCard({
                                 <InputError message={draftForm.errors.xml} />
                             </div>
                         )}
-                        <InputError
-                            message={draftForm.errors.expense_report}
-                        />
+                        <InputError message={draftForm.errors.expense_report} />
                         <Button
                             type="submit"
                             variant="secondary"
@@ -303,10 +299,7 @@ export default function ExpenseReportSubmitCard({
                         <InputError
                             message={submitForm.errors.expense_report}
                         />
-                        <Button
-                            type="submit"
-                            disabled={submitForm.processing}
-                        >
+                        <Button type="submit" disabled={submitForm.processing}>
                             {submitForm.processing
                                 ? 'Enviando…'
                                 : 'Enviar a contabilidad'}

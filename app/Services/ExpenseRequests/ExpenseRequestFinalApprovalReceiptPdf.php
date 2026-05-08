@@ -14,8 +14,8 @@ final class ExpenseRequestFinalApprovalReceiptPdf
             'user',
             'expenseConcept',
             'approvals' => fn ($q) => $q->orderBy('step_order'),
-            'approvals.role',
             'approvals.approver',
+            'approvals.actor',
         ]);
 
         $filename = 'recibo-aprobacion-'.($expenseRequest->folio ?? $expenseRequest->id).'.pdf';

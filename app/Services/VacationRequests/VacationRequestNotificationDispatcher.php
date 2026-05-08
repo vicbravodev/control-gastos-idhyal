@@ -12,6 +12,7 @@ use App\Notifications\VacationRequests\VacationRequestSubmittedNotification;
 use App\Services\Approvals\ApprovalPolicyResolver;
 use App\Services\Approvals\ApprovalStepGrouper;
 use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
+use App\Services\Approvals\ResolveApproversForStep;
 
 final class VacationRequestNotificationDispatcher
 {
@@ -40,21 +41,19 @@ final class VacationRequestNotificationDispatcher
         }
 
         $firstGroupOrders = $groups[0];
-        $roleIds = $vacationRequest->approvals
-            ->filter(fn ($a) => in_array($a->step_order, $firstGroupOrders, true))
-            ->pluck('role_id')
-            ->unique()
-            ->values()
-            ->all();
+        $approvalsInFirstGroup = $vacationRequest->approvals
+            ->filter(fn ($a) => in_array($a->step_order, $firstGroupOrders, true));
 
-        if ($roleIds === []) {
-            return;
+        $approverResolver = app(ResolveApproversForStep::class);
+
+        $approvers = collect();
+        foreach ($approvalsInFirstGroup as $approval) {
+            $approvers = $approvers->merge($approverResolver->resolveForApproval($approval));
         }
 
-        $approvers = User::query()
-            ->whereIn('role_id', $roleIds)
-            ->where('id', '!=', $vacationRequest->user_id)
-            ->get();
+        $approvers = $approvers->unique('id')
+            ->reject(fn (User $u): bool => $u->id === $vacationRequest->user_id)
+            ->values();
 
         foreach ($approvers as $approver) {
             $approver->notify(new VacationRequestSubmittedNotification($vacationRequest));

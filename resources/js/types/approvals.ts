@@ -1,8 +1,17 @@
+export type ApprovalApproverType = 'role' | 'department' | 'user';
+
+export type ApprovalApprover = {
+    type: ApprovalApproverType;
+    type_label: string;
+    id: number;
+    name: string;
+};
+
 export type ApprovalRow = {
     id: number;
     step_order: number;
     status: string;
-    role: { id: number; name: string; slug: string };
+    approver: ApprovalApprover;
     note: string | null;
     acted_at: string | null;
 };

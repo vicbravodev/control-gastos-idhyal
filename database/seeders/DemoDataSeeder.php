@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\BudgetLedgerEntryType;
 use App\Enums\DeliveryMethod;
@@ -26,7 +27,6 @@ use App\Models\Role;
 use App\Models\Settlement;
 use App\Models\State;
 use App\Models\User;
-use App\Models\VacationEntitlement;
 use App\Models\VacationEntitlementAdjustment;
 use App\Models\VacationRequest;
 use App\Models\VacationRequestApproval;
@@ -268,32 +268,47 @@ class DemoDataSeeder extends Seeder
 
     private function seedVacationRulesAndEntitlements(): void
     {
-        $rule = VacationRule::query()->updateOrCreate(
-            ['code' => 'LFT_2023'],
-            [
-                'name' => 'Ley Federal del Trabajo 2023',
-                'min_years_service' => 1.0,
-                'max_years_service' => null,
-                'days_granted_per_year' => 12,
-                'max_days_per_request' => 10,
-                'max_days_per_month' => 10,
-                'max_days_per_quarter' => 10,
-                'max_days_per_year' => 12,
-                'blackout_dates' => [],
-                'sort_order' => 1,
-            ],
-        );
+        // Tramos escalonados según Ley Federal del Trabajo (reforma 2023, "Vacaciones Dignas").
+        // Se ordenan de MAYOR a MENOR antigüedad (sort_order 1 = tier más alto).
+        // El resolver toma la primera regla cuyo `min_years_service <= antigüedad`,
+        // por lo que cada tier sólo necesita su mínimo (no max), evitando
+        // problemas de precisión decimal en los bordes.
+        $tiers = [
+            ['code' => 'LFT_2023_T30_PLUS', 'min' => 30.0, 'days' => 30, 'order' => 1, 'label' => '30+ años'],
+            ['code' => 'LFT_2023_T25_29', 'min' => 25.0, 'days' => 28, 'order' => 2, 'label' => '25-29 años'],
+            ['code' => 'LFT_2023_T20_24', 'min' => 20.0, 'days' => 26, 'order' => 3, 'label' => '20-24 años'],
+            ['code' => 'LFT_2023_T15_19', 'min' => 15.0, 'days' => 24, 'order' => 4, 'label' => '15-19 años'],
+            ['code' => 'LFT_2023_T10_14', 'min' => 10.0, 'days' => 22, 'order' => 5, 'label' => '10-14 años'],
+            ['code' => 'LFT_2023_T5_9', 'min' => 5.0, 'days' => 20, 'order' => 6, 'label' => '5-9 años'],
+            ['code' => 'LFT_2023_T4', 'min' => 4.0, 'days' => 18, 'order' => 7, 'label' => '4 años'],
+            ['code' => 'LFT_2023_T3', 'min' => 3.0, 'days' => 16, 'order' => 8, 'label' => '3 años'],
+            ['code' => 'LFT_2023_T2', 'min' => 2.0, 'days' => 14, 'order' => 9, 'label' => '2 años'],
+            ['code' => 'LFT_2023_T1', 'min' => 1.0, 'days' => 12, 'order' => 10, 'label' => '1 año'],
+        ];
 
-        foreach (['asesor', 'asesor2', 'coord_estatal', 'coord_estatal2'] as $key) {
-            VacationEntitlement::query()->updateOrCreate(
-                ['user_id' => $this->users[$key]->id, 'calendar_year' => now()->year],
+        // Eliminar la regla legacy si existe (una sola que daba 12 días para todos los >=1 año).
+        VacationRule::query()->where('code', 'LFT_2023')->delete();
+
+        foreach ($tiers as $tier) {
+            VacationRule::query()->updateOrCreate(
+                ['code' => $tier['code']],
                 [
-                    'days_allocated' => 12,
-                    'days_used' => $key === 'asesor' ? 3 : 0,
-                    'vacation_rule_id' => $rule->id,
+                    'name' => sprintf('LFT 2023 — %s (%d días)', $tier['label'], $tier['days']),
+                    'min_years_service' => $tier['min'],
+                    'max_years_service' => null,
+                    'days_granted_per_year' => $tier['days'],
+                    'max_days_per_request' => $tier['days'],
+                    'max_days_per_month' => $tier['days'],
+                    'max_days_per_quarter' => $tier['days'],
+                    'max_days_per_year' => $tier['days'],
+                    'blackout_dates' => [],
+                    'sort_order' => $tier['order'],
                 ],
             );
         }
+
+        // Las entitlements se resolverán on-demand por VacationEntitlementBalanceResolver,
+        // tomando el tier correcto según hire_date de cada usuario.
     }
 
     /**
@@ -1124,7 +1139,8 @@ class DemoDataSeeder extends Seeder
         VacationRequestApproval::query()->create([
             'vacation_request_id' => $vr->id,
             'step_order' => 1,
-            'role_id' => $this->secretarioRole->id,
+            'approver_type' => ApprovalApproverType::Role,
+            'approver_id' => $this->secretarioRole->id,
             'status' => ApprovalInstanceStatus::Pending,
             'approver_user_id' => null,
             'note' => null,
@@ -1152,7 +1168,8 @@ class DemoDataSeeder extends Seeder
         VacationRequestApproval::query()->create([
             'vacation_request_id' => $vr->id,
             'step_order' => 1,
-            'role_id' => $this->secretarioRole->id,
+            'approver_type' => ApprovalApproverType::Role,
+            'approver_id' => $this->secretarioRole->id,
             'status' => ApprovalInstanceStatus::Skipped,
             'approver_user_id' => null,
             'note' => null,
@@ -1177,7 +1194,7 @@ class DemoDataSeeder extends Seeder
         $vr = VacationRequest::query()->create([
             'user_id' => $this->users['asesor']->id,
             'status' => VacationRequestStatus::Approved,
-            'folio' => 'VAC-' . now()->year . '-DEMO-1',
+            'folio' => 'VAC-'.now()->year.'-DEMO-1',
             'starts_on' => now()->addDays(10)->toDateString(),
             'ends_on' => now()->addDays(14)->toDateString(),
             'business_days_count' => 3,
@@ -1186,7 +1203,8 @@ class DemoDataSeeder extends Seeder
         VacationRequestApproval::query()->create([
             'vacation_request_id' => $vr->id,
             'step_order' => 1,
-            'role_id' => $this->secretarioRole->id,
+            'approver_type' => ApprovalApproverType::Role,
+            'approver_id' => $this->secretarioRole->id,
             'status' => ApprovalInstanceStatus::Approved,
             'approver_user_id' => $this->users['secretario_general']->id,
             'note' => 'Aprobada.',
@@ -1199,7 +1217,7 @@ class DemoDataSeeder extends Seeder
         $vr = VacationRequest::query()->create([
             'user_id' => $this->users['asesor2']->id,
             'status' => VacationRequestStatus::ApprovalInProgress,
-            'folio' => 'VAC-' . now()->year . '-DEMO-2',
+            'folio' => 'VAC-'.now()->year.'-DEMO-2',
             'starts_on' => now()->addDays(20)->toDateString(),
             'ends_on' => now()->addDays(26)->toDateString(),
             'business_days_count' => 5,
@@ -1208,7 +1226,8 @@ class DemoDataSeeder extends Seeder
         VacationRequestApproval::query()->create([
             'vacation_request_id' => $vr->id,
             'step_order' => 1,
-            'role_id' => $this->secretarioRole->id,
+            'approver_type' => ApprovalApproverType::Role,
+            'approver_id' => $this->secretarioRole->id,
             'status' => ApprovalInstanceStatus::Pending,
             'approver_user_id' => null,
             'note' => null,
@@ -1221,7 +1240,7 @@ class DemoDataSeeder extends Seeder
         $vr = VacationRequest::query()->create([
             'user_id' => $this->users['coord_estatal']->id,
             'status' => VacationRequestStatus::Rejected,
-            'folio' => 'VAC-' . now()->year . '-DEMO-3',
+            'folio' => 'VAC-'.now()->year.'-DEMO-3',
             'starts_on' => now()->addDays(5)->toDateString(),
             'ends_on' => now()->addDays(19)->toDateString(),
             'business_days_count' => 11,
@@ -1230,7 +1249,8 @@ class DemoDataSeeder extends Seeder
         VacationRequestApproval::query()->create([
             'vacation_request_id' => $vr->id,
             'step_order' => 1,
-            'role_id' => $this->secretarioRole->id,
+            'approver_type' => ApprovalApproverType::Role,
+            'approver_id' => $this->secretarioRole->id,
             'status' => ApprovalInstanceStatus::Rejected,
             'approver_user_id' => $this->users['secretario_general']->id,
             'note' => 'Excede el máximo de días por solicitud.',
@@ -1243,7 +1263,7 @@ class DemoDataSeeder extends Seeder
         $vr = VacationRequest::query()->create([
             'user_id' => $this->users['asesor']->id,
             'status' => VacationRequestStatus::Completed,
-            'folio' => 'VAC-' . now()->year . '-DEMO-4',
+            'folio' => 'VAC-'.now()->year.'-DEMO-4',
             'starts_on' => now()->subDays(20)->toDateString(),
             'ends_on' => now()->subDays(16)->toDateString(),
             'business_days_count' => 3,
@@ -1252,7 +1272,8 @@ class DemoDataSeeder extends Seeder
         VacationRequestApproval::query()->create([
             'vacation_request_id' => $vr->id,
             'step_order' => 1,
-            'role_id' => $this->secretarioRole->id,
+            'approver_type' => ApprovalApproverType::Role,
+            'approver_id' => $this->secretarioRole->id,
             'status' => ApprovalInstanceStatus::Approved,
             'approver_user_id' => $this->users['secretario_general']->id,
             'note' => 'Aprobada.',
@@ -1297,7 +1318,7 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * @param array<int, array{role: Role, status: ApprovalInstanceStatus, approver?: User, note?: string}> $steps
+     * @param  array<int, array{role: Role, status: ApprovalInstanceStatus, approver?: User, note?: string}>  $steps
      */
     private function addApprovalSteps(ExpenseRequest $er, array $steps): void
     {
@@ -1305,7 +1326,8 @@ class DemoDataSeeder extends Seeder
             ExpenseRequestApproval::query()->create([
                 'expense_request_id' => $er->id,
                 'step_order' => $i + 1,
-                'role_id' => $step['role']->id,
+                'approver_type' => ApprovalApproverType::Role,
+                'approver_id' => $step['role']->id,
                 'status' => $step['status'],
                 'approver_user_id' => isset($step['approver']) ? $step['approver']->id : null,
                 'note' => $step['note'] ?? null,

@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\RoleSlug;
 use App\Models\User;
 
 class UserPolicy
@@ -12,12 +11,12 @@ class UserPolicy
      */
     public function manageStaffDirectory(User $user): bool
     {
-        return $user->hasRole(RoleSlug::SuperAdmin);
+        return $user->hasPermission('admin.users.manage');
     }
 
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(RoleSlug::SuperAdmin, RoleSlug::SecretarioGeneral);
+        return $user->hasAnyPermission(['admin.users.view', 'admin.users.manage']);
     }
 
     public function view(User $user, User $model): bool
@@ -26,12 +25,12 @@ class UserPolicy
             return true;
         }
 
-        return $user->hasAnyRole(RoleSlug::SuperAdmin, RoleSlug::SecretarioGeneral);
+        return $user->hasAnyPermission(['admin.users.view', 'admin.users.manage']);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasRole(RoleSlug::SuperAdmin);
+        return $user->hasPermission('admin.users.manage');
     }
 
     public function update(User $user, User $model): bool
@@ -40,12 +39,12 @@ class UserPolicy
             return true;
         }
 
-        return $user->hasAnyRole(RoleSlug::SuperAdmin, RoleSlug::SecretarioGeneral);
+        return $user->hasPermission('admin.users.manage');
     }
 
     public function delete(User $user, User $model): bool
     {
-        return $user->id === $model->id || $user->hasRole(RoleSlug::SuperAdmin);
+        return $user->id === $model->id || $user->hasPermission('admin.users.manage');
     }
 
     public function restore(User $user, User $model): bool

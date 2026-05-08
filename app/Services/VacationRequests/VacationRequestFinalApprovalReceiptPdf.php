@@ -13,8 +13,8 @@ final class VacationRequestFinalApprovalReceiptPdf
         $vacationRequest->load([
             'user',
             'approvals' => fn ($q) => $q->orderBy('step_order'),
-            'approvals.role',
             'approvals.approver',
+            'approvals.actor',
         ]);
 
         $filename = 'recibo-aprobacion-vacaciones-'.($vacationRequest->folio ?? $vacationRequest->id).'.pdf';

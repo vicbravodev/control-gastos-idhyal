@@ -86,9 +86,7 @@ export default function ActionRequiredCard({
     if (canReviewExpenseReport) {
         return (
             <Section label="Acción requerida: revisar comprobación">
-                <ExpenseReportReviewCard
-                    expenseRequestId={expenseRequest.id}
-                />
+                <ExpenseReportReviewCard expenseRequestId={expenseRequest.id} />
             </Section>
         );
     }
@@ -124,7 +122,7 @@ function Section({
 }) {
     return (
         <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+            <p className="text-xs font-semibold tracking-wider text-amber-700 uppercase dark:text-amber-400">
                 {label}
             </p>
             {children}

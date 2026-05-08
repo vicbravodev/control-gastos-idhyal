@@ -69,7 +69,7 @@
             @foreach($expenseRequest->approvals as $a)
             <tr>
                 <td>{{ $a->step_order }}</td>
-                <td>{{ $a->role->name }}</td>
+                <td>{{ $a->approver_type->label() }}: {{ $a->approver?->name ?? "—" }}</td>
                 <td><span class="badge badge-approved">{{ $a->status->label() }}</span></td>
                 <td>{{ $a->approver?->name ?? '—' }}</td>
                 <td>{{ $a->acted_at ? $a->acted_at->timezone(config('app.timezone'))->format('d/m/Y H:i') : '—' }}</td>

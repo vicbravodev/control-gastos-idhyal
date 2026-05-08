@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Reports;
 
 use App\Enums\DeliveryMethod;
 use App\Enums\ExpenseRequestStatus;
-use App\Enums\RoleSlug;
 use App\Http\Controllers\Controller;
 use App\Models\ExpenseConcept;
 use App\Models\ExpenseRequest;
@@ -120,7 +119,7 @@ class ExpenseAnalyticsController extends Controller
 
         $pdf->setPaper('a4', 'landscape');
 
-        return $pdf->download('reporte-gastos-' . now()->format('Y-m-d-His') . '.pdf');
+        return $pdf->download('reporte-gastos-'.now()->format('Y-m-d-His').'.pdf');
     }
 
     private function authorizeAccess(Request $request): void
@@ -128,10 +127,7 @@ class ExpenseAnalyticsController extends Controller
         $user = $request->user();
 
         abort_unless(
-            $user !== null && (
-                $user->hasRole(RoleSlug::Contabilidad) ||
-                $user->hasRole(RoleSlug::SuperAdmin)
-            ),
+            $user !== null && $user->hasPermission('report.expenses.view'),
             403,
         );
     }
@@ -182,37 +178,37 @@ class ExpenseAnalyticsController extends Controller
         $labels = [];
 
         if ($request->filled('date_from')) {
-            $labels[] = 'Desde: ' . $request->query('date_from');
+            $labels[] = 'Desde: '.$request->query('date_from');
         }
         if ($request->filled('date_to')) {
-            $labels[] = 'Hasta: ' . $request->query('date_to');
+            $labels[] = 'Hasta: '.$request->query('date_to');
         }
         if ($request->filled('status')) {
             $status = ExpenseRequestStatus::tryFrom($request->query('status'));
-            $labels[] = 'Estado: ' . ($status?->label() ?? $request->query('status'));
+            $labels[] = 'Estado: '.($status?->label() ?? $request->query('status'));
         }
         if ($request->filled('region_id')) {
             $region = Region::query()->find($request->query('region_id'));
-            $labels[] = 'Región: ' . ($region?->name ?? $request->query('region_id'));
+            $labels[] = 'Región: '.($region?->name ?? $request->query('region_id'));
         }
         if ($request->filled('state_id')) {
             $state = State::query()->find($request->query('state_id'));
-            $labels[] = 'Estado: ' . ($state?->name ?? $request->query('state_id'));
+            $labels[] = 'Estado: '.($state?->name ?? $request->query('state_id'));
         }
         if ($request->filled('user_id')) {
             $user = User::query()->find($request->query('user_id'));
-            $labels[] = 'Usuario: ' . ($user?->name ?? $request->query('user_id'));
+            $labels[] = 'Usuario: '.($user?->name ?? $request->query('user_id'));
         }
         if ($request->filled('expense_concept_id')) {
             $concept = ExpenseConcept::query()->find($request->query('expense_concept_id'));
-            $labels[] = 'Concepto: ' . ($concept?->name ?? $request->query('expense_concept_id'));
+            $labels[] = 'Concepto: '.($concept?->name ?? $request->query('expense_concept_id'));
         }
         if ($request->filled('delivery_method')) {
             $method = DeliveryMethod::tryFrom($request->query('delivery_method'));
-            $labels[] = 'Forma de entrega: ' . ($method?->label() ?? $request->query('delivery_method'));
+            $labels[] = 'Forma de entrega: '.($method?->label() ?? $request->query('delivery_method'));
         }
         if ($request->filled('search')) {
-            $labels[] = 'Búsqueda: ' . $request->query('search');
+            $labels[] = 'Búsqueda: '.$request->query('search');
         }
 
         return $labels;

@@ -9,27 +9,27 @@ class ExpenseConceptPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('expense_concept.manage');
     }
 
     public function view(User $user, ExpenseConcept $expenseConcept): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('expense_concept.manage');
     }
 
     public function create(User $user): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('expense_concept.manage');
     }
 
     public function update(User $user, ExpenseConcept $expenseConcept): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('expense_concept.manage');
     }
 
     public function delete(User $user, ExpenseConcept $expenseConcept): bool
     {
-        if (! $user->canManageBudgetsAndPolicies()) {
+        if (! $user->hasPermission('expense_concept.manage')) {
             return false;
         }
 

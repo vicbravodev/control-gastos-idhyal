@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Admin\Users;
 
-use App\Enums\RoleSlug;
 use App\Models\State;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -72,7 +71,7 @@ class UpdateStaffUserRequest extends FormRequest
             $stateId = $this->input('state_id');
             $roleId = $this->input('role_id');
 
-            if ($actor !== null && $actor->id === $target->id && $target->hasRole(RoleSlug::SuperAdmin)) {
+            if ($actor !== null && $actor->id === $target->id && $target->hasPermission(User::PERMISSION_BYPASS_ALL)) {
                 $newRoleId = $roleId === null || $roleId === '' ? null : (int) $roleId;
                 if ($newRoleId !== $target->role_id) {
                     $validator->errors()->add(

@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Enums\RoleSlug;
 use App\Models\Budget;
 use App\Models\Department;
 use App\Models\ExpenseReport;
@@ -44,9 +43,9 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Status-gated workflow abilities always defer to their policy so that
-     * SuperAdmin cannot bypass status checks (e.g. approving a request that
-     * is in settlement_pending).  All other abilities still resolve to true
-     * for SuperAdmin so they retain full read / admin access.
+     * even users with system.bypass_all cannot skip status checks (e.g.
+     * approving a request that is in settlement_pending). All other abilities
+     * still resolve to true for users with system.bypass_all.
      */
     protected function configureAuthorization(): void
     {
@@ -68,7 +67,11 @@ class AppServiceProvider extends ServiceProvider
         ];
 
         Gate::before(function (?User $user, string $ability) use ($statusGated): ?bool {
-            if ($user === null || ! $user->hasRole(RoleSlug::SuperAdmin)) {
+            if ($user === null) {
+                return null;
+            }
+
+            if (! $user->hasPermission(User::PERMISSION_BYPASS_ALL)) {
                 return null;
             }
 

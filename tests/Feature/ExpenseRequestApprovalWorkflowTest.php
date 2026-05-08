@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ApprovalPolicyDocumentType;
-use App\Enums\CombineWithNext;
+use App\Enums\ApprovalStepMode;
 use App\Enums\DocumentEventType;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\ApprovalPolicy;
@@ -41,14 +41,16 @@ class ExpenseRequestApprovalWorkflowTest extends TestCase
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 2,
-            'role_id' => $conta->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $conta->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
 
         return $policy;
@@ -124,20 +126,23 @@ class ExpenseRequestApprovalWorkflowTest extends TestCase
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::Or,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::AnyOf,
         ]);
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 2,
-            'role_id' => $sec->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $sec->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 3,
-            'role_id' => $conta->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $conta->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
 
         $requester = User::factory()->forRole('asesor')->create();
@@ -259,8 +264,9 @@ class ExpenseRequestApprovalWorkflowTest extends TestCase
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
 
         $requester = User::factory()->forRole('coord_regional')->create();

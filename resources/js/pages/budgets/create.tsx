@@ -83,12 +83,14 @@ export default function BudgetsCreate({
 
     useEffect(() => {
         const list = optionsForType(data.budgetable_type);
+
         if (typeRef.current === null) {
             typeRef.current = data.budgetable_type;
             setData('budgetable_id', list[0]?.id ?? 0);
 
             return;
         }
+
         if (typeRef.current !== data.budgetable_type) {
             typeRef.current = data.budgetable_type;
             setData('budgetable_id', list[0]?.id ?? 0);
@@ -109,7 +111,7 @@ export default function BudgetsCreate({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Nuevo presupuesto" />
-            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 animate-fade-in">
+            <div className="relative mx-auto flex w-full max-w-2xl animate-fade-in flex-col gap-4 p-4">
                 <div
                     className="pointer-events-none absolute inset-0 -z-10 rounded-xl opacity-[0.05] dark:opacity-[0.09]"
                     style={{
@@ -128,10 +130,7 @@ export default function BudgetsCreate({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={submit}
-                            className="flex flex-col gap-5"
-                        >
+                        <form onSubmit={submit} className="flex flex-col gap-5">
                             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="budgetable_type">
@@ -172,10 +171,7 @@ export default function BudgetsCreate({
                                                 : undefined
                                         }
                                         onValueChange={(v) =>
-                                            setData(
-                                                'budgetable_id',
-                                                Number(v),
-                                            )
+                                            setData('budgetable_id', Number(v))
                                         }
                                         disabled={entityOptions.length === 0}
                                         required
@@ -217,9 +213,7 @@ export default function BudgetsCreate({
                                         required
                                     />
                                     <InputError
-                                        message={
-                                            errors.period_starts_on
-                                        }
+                                        message={errors.period_starts_on}
                                     />
                                 </div>
                                 <div className="grid gap-2">
@@ -251,10 +245,7 @@ export default function BudgetsCreate({
                                     id="amount_limit_cents"
                                     value={data.amount_limit_cents}
                                     onChange={(cents) =>
-                                        setData(
-                                            'amount_limit_cents',
-                                            cents,
-                                        )
+                                        setData('amount_limit_cents', cents)
                                     }
                                     required
                                 />

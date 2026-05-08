@@ -1,142 +1,189 @@
-import { Badge } from '@/components/ui/badge';
+import {
+    AlertTriangle,
+    Ban,
+    Calculator,
+    CheckCircle2,
+    Clock,
+    FilePen,
+    Loader,
+    Lock,
+    LoaderCircle,
+    Receipt,
+    ReceiptText,
+    Search,
+    Send,
+    SkipForward,
+    XCircle,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
 import { cn } from '@/lib/utils';
 
-const STATUS_CONFIG: Record<
-    string,
-    { label: string; className: string }
-> = {
-    // --- ExpenseRequestStatus / VacationRequestStatus ---
-    submitted: {
-        label: 'Enviada',
-        className: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-    },
+type StatusVariant =
+    | 'info'
+    | 'success'
+    | 'warning'
+    | 'danger'
+    | 'muted'
+    | 'brand'
+    | 'gold';
+
+type StatusSize = 'sm' | 'md' | 'lg';
+
+type StatusEntry = {
+    label: string;
+    icon: LucideIcon;
+    variant: StatusVariant;
+    pulse?: boolean;
+};
+
+const STATUS_CONFIG: Record<string, StatusEntry> = {
+    // --- Lifecycle (ExpenseRequestStatus / VacationRequestStatus) ---
+    draft: { label: 'Borrador', icon: FilePen, variant: 'muted' },
+    submitted: { label: 'Enviada', icon: Send, variant: 'info' },
     approval_in_progress: {
         label: 'En aprobación',
-        className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
+        icon: LoaderCircle,
+        variant: 'info',
     },
-    approved: {
-        label: 'Aprobada',
-        className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-    },
-    rejected: {
-        label: 'Rechazada',
-        className: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
-    },
-    cancelled: {
-        label: 'Cancelada',
-        className: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700',
-    },
+    approved: { label: 'Aprobada', icon: CheckCircle2, variant: 'success' },
     pending_payment: {
-        label: 'Pendiente de pago',
-        className: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800',
+        label: 'Por pagar',
+        icon: Clock,
+        variant: 'warning',
+        pulse: true,
     },
-    paid: {
-        label: 'Pagada',
-        className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-    },
+    paid: { label: 'Pagada', icon: CheckCircle2, variant: 'success' },
     awaiting_expense_report: {
-        label: 'Esperando comprobación',
-        className: 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800',
-    },
-    settlement_pending: {
-        label: 'Liquidación pendiente',
-        className: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800',
-    },
-    completed: {
-        label: 'Completada',
-        className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-    },
-    closed: {
-        label: 'Cerrado',
-        className: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700',
-    },
-
-    // --- ApprovalInstanceStatus ---
-    pending: {
-        label: 'Pendiente',
-        className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
-    },
-    skipped: {
-        label: 'Omitido',
-        className: 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700',
-    },
-
-    // --- ExpenseReportStatus (direct values from expense_reports.status) ---
-    draft: {
-        label: 'Borrador',
-        className: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-700',
-    },
-    accounting_review: {
-        label: 'En revisión contable',
-        className: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800',
-    },
-
-    // --- ExpenseRequestStatus (expense report lifecycle on the request) ---
-    expense_report_draft: {
-        label: 'Comprobación borrador',
-        className: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700',
-    },
-    expense_report_submitted: {
-        label: 'Comprobación enviada',
-        className: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+        label: 'Por comprobar',
+        icon: ReceiptText,
+        variant: 'warning',
+        pulse: true,
     },
     expense_report_in_review: {
         label: 'Comprobación en revisión',
-        className: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800',
+        icon: Search,
+        variant: 'info',
     },
     expense_report_approved: {
-        label: 'Comprobación aprobada',
-        className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+        label: 'Comprobada',
+        icon: Receipt,
+        variant: 'success',
     },
     expense_report_rejected: {
         label: 'Comprobación rechazada',
-        className: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
+        icon: XCircle,
+        variant: 'danger',
+    },
+    accounting_review: {
+        label: 'Revisión contable',
+        icon: Calculator,
+        variant: 'info',
+    },
+    settlement_pending: {
+        label: 'Cuadre pendiente',
+        icon: AlertTriangle,
+        variant: 'warning',
+    },
+    closed: { label: 'Cerrada', icon: Lock, variant: 'success' },
+    rejected: { label: 'Rechazada', icon: XCircle, variant: 'danger' },
+    cancelled: { label: 'Cancelada', icon: Ban, variant: 'muted' },
+    expired: { label: 'Vencida', icon: AlertTriangle, variant: 'danger' },
+    completed: { label: 'Completada', icon: CheckCircle2, variant: 'success' },
+
+    // --- ApprovalInstanceStatus ---
+    pending: { label: 'Pendiente', icon: Clock, variant: 'warning' },
+    skipped: { label: 'Omitido', icon: SkipForward, variant: 'muted' },
+
+    // --- ExpenseReportStatus ---
+    expense_report_draft: {
+        label: 'Comprobación borrador',
+        icon: FilePen,
+        variant: 'muted',
+    },
+    expense_report_submitted: {
+        label: 'Comprobación enviada',
+        icon: Send,
+        variant: 'info',
     },
 
     // --- SettlementStatus ---
-    calculated: {
-        label: 'Calculado',
-        className: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-    },
+    calculated: { label: 'Calculado', icon: Calculator, variant: 'info' },
     pending_user_return: {
         label: 'Pendiente: devolución',
-        className: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800',
+        icon: AlertTriangle,
+        variant: 'warning',
     },
     pending_company_payment: {
         label: 'Pendiente: pago complementario',
-        className: 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:border-orange-800',
+        icon: AlertTriangle,
+        variant: 'warning',
     },
-    settled: {
-        label: 'Liquidado',
-        className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-    },
+    settled: { label: 'Liquidado', icon: CheckCircle2, variant: 'success' },
+
+    // --- Fallback used when status comes through as an in-flight loader value ---
+    in_progress: { label: 'En curso', icon: Loader, variant: 'info' },
+};
+
+const VARIANT_CLASSES: Record<StatusVariant, string> = {
+    info: 'bg-[var(--info-bg)] text-[var(--info-fg)]',
+    success: 'bg-[var(--success-bg)] text-[var(--success-fg)]',
+    warning: 'bg-[var(--warning-bg)] text-[var(--warning-fg)]',
+    danger: 'bg-[var(--destructive-bg)] text-[var(--destructive-fg)]',
+    muted: 'bg-muted text-muted-foreground',
+    brand: 'bg-[var(--brand-blue-50)] text-[var(--brand-blue-700)]',
+    gold: 'bg-[var(--brand-gold-100)] text-[var(--brand-gold-700)]',
+};
+
+const SIZE_CLASSES: Record<StatusSize, string> = {
+    sm: 'h-5 px-2 text-[11px] [&>svg]:size-3',
+    md: 'h-6 px-2.5 text-xs [&>svg]:size-3.5',
+    lg: 'h-7 px-3 text-[13px] [&>svg]:size-4',
 };
 
 export function StatusBadge({
     status,
+    size = 'md',
     className,
 }: {
     status: string;
+    size?: StatusSize;
     className?: string;
 }) {
     const config = STATUS_CONFIG[status];
     const label = config?.label ?? status;
-    const colorClass = config?.className ?? 'bg-secondary text-secondary-foreground';
+    const Icon = config?.icon;
+    const variant = config?.variant ?? 'muted';
 
     return (
-        <Badge
-            variant="outline"
+        <span
+            data-status={status}
             className={cn(
-                'border font-medium',
-                colorClass,
+                'inline-flex items-center gap-1 rounded-full leading-none font-semibold whitespace-nowrap',
+                VARIANT_CLASSES[variant],
+                SIZE_CLASSES[size],
                 className,
             )}
         >
+            {Icon ? (
+                <Icon
+                    aria-hidden
+                    className={cn(
+                        'shrink-0',
+                        config?.pulse &&
+                            'animate-[pulse-soft_1.6s_ease-in-out_infinite]',
+                    )}
+                />
+            ) : null}
             {label}
-        </Badge>
+        </span>
     );
 }
 
 export function getStatusLabel(status: string): string {
     return STATUS_CONFIG[status]?.label ?? status;
+}
+
+export function getStatusVariant(status: string): StatusVariant {
+    return STATUS_CONFIG[status]?.variant ?? 'muted';
 }

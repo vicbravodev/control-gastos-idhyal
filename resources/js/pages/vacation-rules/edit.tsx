@@ -64,7 +64,7 @@ export default function VacationRulesEdit({ rule }: { rule: RuleForm }) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Editar ${rule.code}`} />
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 animate-fade-in">
+            <div className="mx-auto flex w-full max-w-3xl animate-fade-in flex-col gap-4 p-4">
                 <Heading
                     title="Editar regla"
                     description="Los cambios aplican a nuevas asignaciones y validaciones."
@@ -74,10 +74,7 @@ export default function VacationRulesEdit({ rule }: { rule: RuleForm }) {
                         <CardTitle>Datos</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={submit}
-                            className="flex flex-col gap-4"
-                        >
+                        <form onSubmit={submit} className="flex flex-col gap-4">
                             <div className="grid gap-2 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="code">Código</Label>
@@ -299,7 +296,9 @@ export default function VacationRulesEdit({ rule }: { rule: RuleForm }) {
                                     Guardar cambios
                                 </Button>
                                 <Button variant="outline" asChild>
-                                    <Link href={VacationRuleController.index.url()}>
+                                    <Link
+                                        href={VacationRuleController.index.url()}
+                                    >
                                         Volver
                                     </Link>
                                 </Button>

@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ApprovalPolicyDocumentType;
-use App\Enums\CombineWithNext;
+use App\Enums\ApprovalStepMode;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
 use App\Models\Role;
@@ -37,14 +37,16 @@ class VacationRequestNotificationsTest extends TestCase
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 2,
-            'role_id' => $secretario->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $secretario->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
     }
 
@@ -110,8 +112,9 @@ class VacationRequestNotificationsTest extends TestCase
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $secretarioRole->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $secretarioRole->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
 
         $requester = User::factory()->forRole('asesor')->create();

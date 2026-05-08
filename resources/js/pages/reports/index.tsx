@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     ArrowDownToLine,
     Banknote,
@@ -14,10 +14,10 @@ import {
     XCircle,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ExpenseAnalyticsController from '@/actions/App/Http/Controllers/Reports/ExpenseAnalyticsController';
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
+import ExpenseAnalyticsController from '@/actions/App/Http/Controllers/Reports/ExpenseAnalyticsController';
 import { EmptyState } from '@/components/empty-state';
-import Heading from '@/components/heading';
+import { PageHeader, StatCard } from '@/components/idhyal';
 import { PaginationNav } from '@/components/pagination-nav';
 import { StatusBadge, getStatusLabel } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -109,7 +109,10 @@ type Filters = {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
-    { title: 'Reportes de gastos', href: ExpenseAnalyticsController.index.url() },
+    {
+        title: 'Reportes de gastos',
+        href: ExpenseAnalyticsController.index.url(),
+    },
 ];
 
 const DELIVERY_METHOD_LABELS: Record<string, string> = {
@@ -117,13 +120,25 @@ const DELIVERY_METHOD_LABELS: Record<string, string> = {
     transfer: 'Transferencia',
 };
 
-const STATUS_CARD_CONFIG: Record<string, { icon: typeof TrendingUp; color: string }> = {
+const STATUS_CARD_CONFIG: Record<
+    string,
+    { icon: typeof TrendingUp; color: string }
+> = {
     submitted: { icon: Clock, color: 'text-blue-600 dark:text-blue-400' },
-    approval_in_progress: { icon: Clock, color: 'text-amber-600 dark:text-amber-400' },
-    approved: { icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-400' },
+    approval_in_progress: {
+        icon: Clock,
+        color: 'text-amber-600 dark:text-amber-400',
+    },
+    approved: {
+        icon: CheckCircle2,
+        color: 'text-emerald-600 dark:text-emerald-400',
+    },
     rejected: { icon: XCircle, color: 'text-red-600 dark:text-red-400' },
     cancelled: { icon: XCircle, color: 'text-gray-500 dark:text-gray-400' },
-    pending_payment: { icon: Clock, color: 'text-orange-600 dark:text-orange-400' },
+    pending_payment: {
+        icon: Clock,
+        color: 'text-orange-600 dark:text-orange-400',
+    },
     paid: { icon: Banknote, color: 'text-emerald-600 dark:text-emerald-400' },
     closed: { icon: CheckCircle2, color: 'text-gray-600 dark:text-gray-400' },
 };
@@ -142,43 +157,72 @@ export default function ReportsIndex({
     filter_options?: FilterOptions;
 }) {
     const [search, setSearch] = useState(filters.search);
-    const [showFilters, setShowFilters] = useState(() => hasActiveFilters(filters));
+    const [showFilters, setShowFilters] = useState(() =>
+        hasActiveFilters(filters),
+    );
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const isFirstRender = useRef(true);
 
     const filteredStates = useMemo(() => {
-        if (!filter_options || !filters.region_id) return filter_options?.states ?? [];
-        return filter_options.states.filter((s) => s.region_id === filters.region_id);
+        if (!filter_options || !filters.region_id) {
+            return filter_options?.states ?? [];
+        }
+
+        return filter_options.states.filter(
+            (s) => s.region_id === filters.region_id,
+        );
     }, [filter_options, filters.region_id]);
 
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
+
             return;
         }
-        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+        }
+
         debounceRef.current = setTimeout(() => {
             applyFilter('search', search || undefined);
         }, DEBOUNCE_MS);
+
         return () => {
-            if (debounceRef.current) clearTimeout(debounceRef.current);
+            if (debounceRef.current) {
+                clearTimeout(debounceRef.current);
+            }
         };
     }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
     function applyFilter(key: string, value: string | undefined) {
         const params: Record<string, string> = {};
         const allKeys: (keyof Filters)[] = [
-            'search', 'status', 'region_id', 'state_id', 'user_id',
-            'expense_concept_id', 'delivery_method', 'date_from', 'date_to',
+            'search',
+            'status',
+            'region_id',
+            'state_id',
+            'user_id',
+            'expense_concept_id',
+            'delivery_method',
+            'date_from',
+            'date_to',
         ];
+
         for (const k of allKeys) {
             if (k === key) {
-                if (value) params[k] = value;
+                if (value) {
+                    params[k] = value;
+                }
             } else if (filters[k]) {
-                if (key === 'region_id' && k === 'state_id') continue;
+                if (key === 'region_id' && k === 'state_id') {
+                    continue;
+                }
+
                 params[k] = filters[k];
             }
         }
+
         router.get(ExpenseAnalyticsController.index.url(), params, {
             preserveState: true,
             replace: true,
@@ -189,85 +233,105 @@ export default function ReportsIndex({
 
     function clearAllFilters() {
         setSearch('');
-        router.get(ExpenseAnalyticsController.index.url(), {}, {
-            preserveState: true,
-            replace: true,
-            preserveScroll: true,
-        });
+        router.get(
+            ExpenseAnalyticsController.index.url(),
+            {},
+            {
+                preserveState: true,
+                replace: true,
+                preserveScroll: true,
+            },
+        );
     }
 
     const handleToggleFilters = useCallback(() => {
         if (!filter_options && !showFilters) {
             router.reload({ only: ['filter_options'] });
         }
+
         setShowFilters((prev) => !prev);
     }, [filter_options, showFilters]);
 
     const exportUrl = useMemo(() => {
         const params = new URLSearchParams();
         const allKeys: (keyof Filters)[] = [
-            'search', 'status', 'region_id', 'state_id', 'user_id',
-            'expense_concept_id', 'delivery_method', 'date_from', 'date_to',
+            'search',
+            'status',
+            'region_id',
+            'state_id',
+            'user_id',
+            'expense_concept_id',
+            'delivery_method',
+            'date_from',
+            'date_to',
         ];
+
         for (const k of allKeys) {
-            if (filters[k]) params.set(k, filters[k]);
+            if (filters[k]) {
+                params.set(k, filters[k]);
+            }
         }
+
         const qs = params.toString();
-        return ExpenseAnalyticsController.exportPdf.url() + (qs ? `?${qs}` : '');
+
+        return (
+            ExpenseAnalyticsController.exportPdf.url() + (qs ? `?${qs}` : '')
+        );
     }, [filters]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Reportes de gastos" />
-            <div className="flex flex-col gap-6 p-4 animate-fade-in">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <Heading
-                        title="Reportes de gastos"
-                        description="Métricas, filtros avanzados y exportación de solicitudes de gasto."
-                    />
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleToggleFilters}
-                        >
-                            <Filter className="mr-1.5 size-4" />
-                            Filtros
-                        </Button>
-                        <Button asChild size="sm">
-                            <a href={exportUrl}>
-                                <ArrowDownToLine className="mr-1.5 size-4" />
-                                Exportar PDF
-                            </a>
-                        </Button>
-                    </div>
-                </div>
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <PageHeader
+                    eyebrow="Reportes"
+                    title="Reportes de gastos"
+                    subtitle="Métricas, filtros avanzados y exportación de solicitudes de gasto."
+                    actions={
+                        <>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleToggleFilters}
+                            >
+                                <Filter />
+                                Filtros
+                            </Button>
+                            <Button asChild>
+                                <a href={exportUrl}>
+                                    <ArrowDownToLine />
+                                    Exportar PDF
+                                </a>
+                            </Button>
+                        </>
+                    }
+                />
 
                 {/* ── KPI Summary Cards ──────────────────────────── */}
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    <KpiCard
-                        title="Total solicitudes"
+                    <StatCard
+                        label="Total solicitudes"
                         value={summary.total_count.toLocaleString('es-MX')}
-                        icon={Receipt}
-                        className="text-primary"
+                        icon={<Receipt className="size-5" />}
+                        iconTone="blue"
                     />
-                    <KpiCard
-                        title="Monto solicitado"
+                    <StatCard
+                        label="Monto solicitado"
                         value={formatCentsMx(summary.total_requested_cents)}
-                        icon={CircleDollarSign}
-                        className="text-blue-600 dark:text-blue-400"
+                        icon={<CircleDollarSign className="size-5" />}
+                        iconTone="blue"
                     />
-                    <KpiCard
-                        title="Monto aprobado"
+                    <StatCard
+                        label="Monto aprobado"
                         value={formatCentsMx(summary.total_approved_cents)}
-                        icon={CheckCircle2}
-                        className="text-emerald-600 dark:text-emerald-400"
+                        icon={<CheckCircle2 className="size-5" />}
+                        iconTone="gold"
                     />
-                    <KpiCard
-                        title="Monto pagado"
+                    <StatCard
+                        label="Monto pagado"
                         value={formatCentsMx(summary.total_paid_cents)}
-                        icon={Banknote}
-                        className="text-green-600 dark:text-green-400"
+                        icon={<Banknote className="size-5" />}
+                        iconTone="gold"
                     />
                 </div>
 
@@ -278,15 +342,18 @@ export default function ReportsIndex({
                             const cfg = STATUS_CARD_CONFIG[s.status];
                             const Icon = cfg?.icon ?? TrendingUp;
                             const color = cfg?.color ?? 'text-muted-foreground';
+
                             return (
                                 <Card key={s.status} className="gap-2 py-3">
                                     <CardContent className="flex items-center gap-3 px-4 py-0">
-                                        <Icon className={`size-5 shrink-0 ${color}`} />
+                                        <Icon
+                                            className={`size-5 shrink-0 ${color}`}
+                                        />
                                         <div className="min-w-0">
                                             <p className="truncate text-xs text-muted-foreground">
                                                 {getStatusLabel(s.status)}
                                             </p>
-                                            <p className="text-lg font-semibold tabular-nums leading-tight">
+                                            <p className="text-lg leading-tight font-semibold tabular-nums">
                                                 {s.count}
                                             </p>
                                             <p className="text-xs text-muted-foreground tabular-nums">
@@ -305,9 +372,15 @@ export default function ReportsIndex({
                     <Card className="animate-fade-in">
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
-                                <CardTitle className="text-base">Filtros avanzados</CardTitle>
+                                <CardTitle className="text-base">
+                                    Filtros avanzados
+                                </CardTitle>
                                 {hasActiveFilters(filters) && (
-                                    <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearAllFilters}
+                                    >
                                         <X className="mr-1 size-4" />
                                         Limpiar todo
                                     </Button>
@@ -319,10 +392,12 @@ export default function ReportsIndex({
                                 <div className="space-y-1.5">
                                     <Label>Buscar folio</Label>
                                     <div className="relative">
-                                        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                                        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                                         <Input
                                             value={search}
-                                            onChange={(e) => setSearch(e.target.value)}
+                                            onChange={(e) =>
+                                                setSearch(e.target.value)
+                                            }
                                             placeholder="Folio…"
                                             className="pl-8"
                                             autoComplete="off"
@@ -343,7 +418,9 @@ export default function ReportsIndex({
                                     label="Región"
                                     value={filters.region_id}
                                     options={filter_options?.regions ?? []}
-                                    onChange={(v) => applyFilter('region_id', v)}
+                                    onChange={(v) =>
+                                        applyFilter('region_id', v)
+                                    }
                                     allLabel="Todas las regiones"
                                 />
 
@@ -366,16 +443,24 @@ export default function ReportsIndex({
                                 <FilterSelect
                                     label="Concepto"
                                     value={filters.expense_concept_id}
-                                    options={filter_options?.expense_concepts ?? []}
-                                    onChange={(v) => applyFilter('expense_concept_id', v)}
+                                    options={
+                                        filter_options?.expense_concepts ?? []
+                                    }
+                                    onChange={(v) =>
+                                        applyFilter('expense_concept_id', v)
+                                    }
                                     allLabel="Todos los conceptos"
                                 />
 
                                 <FilterSelect
                                     label="Forma de entrega"
                                     value={filters.delivery_method}
-                                    options={filter_options?.delivery_methods ?? []}
-                                    onChange={(v) => applyFilter('delivery_method', v)}
+                                    options={
+                                        filter_options?.delivery_methods ?? []
+                                    }
+                                    onChange={(v) =>
+                                        applyFilter('delivery_method', v)
+                                    }
                                     allLabel="Todas"
                                 />
 
@@ -383,7 +468,12 @@ export default function ReportsIndex({
                                     <Label>Desde</Label>
                                     <DatePicker
                                         value={filters.date_from}
-                                        onChange={(v) => applyFilter('date_from', v || undefined)}
+                                        onChange={(v) =>
+                                            applyFilter(
+                                                'date_from',
+                                                v || undefined,
+                                            )
+                                        }
                                     />
                                 </div>
 
@@ -391,7 +481,12 @@ export default function ReportsIndex({
                                     <Label>Hasta</Label>
                                     <DatePicker
                                         value={filters.date_to}
-                                        onChange={(v) => applyFilter('date_to', v || undefined)}
+                                        onChange={(v) =>
+                                            applyFilter(
+                                                'date_to',
+                                                v || undefined,
+                                            )
+                                        }
                                     />
                                 </div>
                             </div>
@@ -420,73 +515,115 @@ export default function ReportsIndex({
                                                 <TableHead>Folio</TableHead>
                                                 <TableHead>Usuario</TableHead>
                                                 <TableHead>Región</TableHead>
-                                                <TableHead>Estado (geo)</TableHead>
+                                                <TableHead>
+                                                    Estado (geo)
+                                                </TableHead>
                                                 <TableHead>Concepto</TableHead>
                                                 <TableHead>Estado</TableHead>
                                                 <TableHead>Entrega</TableHead>
-                                                <TableHead className="text-right">Solicitado</TableHead>
-                                                <TableHead className="text-right">Aprobado</TableHead>
-                                                <TableHead className="text-right">Pagado</TableHead>
-                                                <TableHead className="text-right">Fecha</TableHead>
+                                                <TableHead className="text-right">
+                                                    Solicitado
+                                                </TableHead>
+                                                <TableHead className="text-right">
+                                                    Aprobado
+                                                </TableHead>
+                                                <TableHead className="text-right">
+                                                    Pagado
+                                                </TableHead>
+                                                <TableHead className="text-right">
+                                                    Fecha
+                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {expenseRequests.data.map((row) => (
-                                                <TableRow key={row.id} className="group">
+                                                <TableRow
+                                                    key={row.id}
+                                                    className="group"
+                                                >
                                                     <TableCell>
                                                         <Link
-                                                            href={ExpenseRequestController.show.url(row.id)}
+                                                            href={ExpenseRequestController.show.url(
+                                                                row.id,
+                                                            )}
                                                             className="font-medium text-primary underline-offset-4 group-hover:underline"
                                                         >
-                                                            {row.folio ?? `#${row.id}`}
+                                                            {row.folio ??
+                                                                `#${row.id}`}
                                                         </Link>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span className="text-sm">{row.user_name}</span>
+                                                        <span className="text-sm">
+                                                            {row.user_name}
+                                                        </span>
                                                         {row.user_role && (
                                                             <span className="block text-xs text-muted-foreground">
                                                                 {row.user_role}
                                                             </span>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell className="text-sm">{row.region_name ?? '—'}</TableCell>
-                                                    <TableCell className="text-sm">{row.state_name ?? '—'}</TableCell>
+                                                    <TableCell className="text-sm">
+                                                        {row.region_name ?? '—'}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm">
+                                                        {row.state_name ?? '—'}
+                                                    </TableCell>
                                                     <TableCell className="max-w-[200px]">
                                                         <span className="line-clamp-1 text-sm font-medium">
                                                             {row.concept_label}
                                                         </span>
                                                         {row.concept_description && (
                                                             <span className="line-clamp-1 text-xs text-muted-foreground">
-                                                                {row.concept_description}
+                                                                {
+                                                                    row.concept_description
+                                                                }
                                                             </span>
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <StatusBadge status={row.status} />
+                                                        <StatusBadge
+                                                            status={row.status}
+                                                        />
                                                     </TableCell>
                                                     <TableCell className="text-sm">
-                                                        {DELIVERY_METHOD_LABELS[row.delivery_method] ?? row.delivery_method}
+                                                        {DELIVERY_METHOD_LABELS[
+                                                            row.delivery_method
+                                                        ] ??
+                                                            row.delivery_method}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium tabular-nums">
-                                                        {formatCentsMx(row.requested_amount_cents)}
+                                                        {formatCentsMx(
+                                                            row.requested_amount_cents,
+                                                        )}
                                                     </TableCell>
                                                     <TableCell className="text-right tabular-nums">
-                                                        {row.approved_amount_cents !== null
-                                                            ? formatCentsMx(row.approved_amount_cents)
+                                                        {row.approved_amount_cents !==
+                                                        null
+                                                            ? formatCentsMx(
+                                                                  row.approved_amount_cents,
+                                                              )
                                                             : '—'}
                                                     </TableCell>
                                                     <TableCell className="text-right tabular-nums">
-                                                        {row.paid_amount_cents > 0
-                                                            ? formatCentsMx(row.paid_amount_cents)
+                                                        {row.paid_amount_cents >
+                                                        0
+                                                            ? formatCentsMx(
+                                                                  row.paid_amount_cents,
+                                                              )
                                                             : '—'}
                                                     </TableCell>
-                                                    <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
+                                                    <TableCell className="text-right text-sm whitespace-nowrap text-muted-foreground">
                                                         {row.created_at
-                                                            ? new Date(row.created_at).toLocaleDateString('es-MX', {
-                                                                  day: '2-digit',
-                                                                  month: 'short',
-                                                                  year: 'numeric',
-                                                              })
+                                                            ? new Date(
+                                                                  row.created_at,
+                                                              ).toLocaleDateString(
+                                                                  'es-MX',
+                                                                  {
+                                                                      day: '2-digit',
+                                                                      month: 'short',
+                                                                      year: 'numeric',
+                                                                  },
+                                                              )
                                                             : '—'}
                                                     </TableCell>
                                                 </TableRow>
@@ -509,32 +646,6 @@ export default function ReportsIndex({
 }
 
 /* ── Helper components ──────────────────────────── */
-
-function KpiCard({
-    title,
-    value,
-    icon: Icon,
-    className,
-}: {
-    title: string;
-    value: string;
-    icon: typeof TrendingUp;
-    className?: string;
-}) {
-    return (
-        <Card className="gap-2 py-4">
-            <CardContent className="flex items-center gap-3 px-5 py-0">
-                <div className="rounded-lg bg-muted p-2.5">
-                    <Icon className={`size-5 ${className ?? ''}`} />
-                </div>
-                <div className="min-w-0">
-                    <p className="truncate text-xs text-muted-foreground">{title}</p>
-                    <p className="text-lg font-bold tabular-nums leading-tight">{value}</p>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
 function FilterSelect({
     label,

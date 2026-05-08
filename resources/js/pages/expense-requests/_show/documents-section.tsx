@@ -31,13 +31,15 @@ export default function DocumentsSection({
     const hasContent =
         attachments.length > 0 || downloads.length > 0 || canAddAttachments;
 
-    if (!hasContent) return null;
+    if (!hasContent) {
+        return null;
+    }
 
     return (
         <div className="space-y-4">
             {downloads.length > 0 && (
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                         Recibos y acuses
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -61,7 +63,7 @@ export default function DocumentsSection({
 
             {(attachments.length > 0 || canAddAttachments) && (
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                         Archivos adjuntos
                     </p>
                     {attachments.length > 0 && (
@@ -122,7 +124,11 @@ export default function DocumentsSection({
                             className="flex items-end gap-3 pt-2"
                             onSubmit={(e) => {
                                 e.preventDefault();
-                                if (form.data.attachments.length === 0) return;
+
+                                if (form.data.attachments.length === 0) {
+                                    return;
+                                }
+
                                 form.post(
                                     ExpenseRequestController.storeSubmissionAttachments.url(
                                         expenseRequestId,
@@ -154,9 +160,7 @@ export default function DocumentsSection({
                                         );
                                     }}
                                 />
-                                <InputError
-                                    message={form.errors.attachments}
-                                />
+                                <InputError message={form.errors.attachments} />
                             </div>
                             <Button
                                 type="submit"
@@ -175,14 +179,19 @@ export default function DocumentsSection({
             <ConfirmationDialog
                 open={deleteTarget !== null}
                 onOpenChange={(open) => {
-                    if (!open) setDeleteTarget(null);
+                    if (!open) {
+                        setDeleteTarget(null);
+                    }
                 }}
                 title="¿Eliminar este archivo?"
                 description="El archivo adjunto se eliminará permanentemente."
                 confirmLabel="Eliminar"
                 variant="destructive"
                 onConfirm={() => {
-                    if (deleteTarget === null) return;
+                    if (deleteTarget === null) {
+                        return;
+                    }
+
                     router.delete(
                         ExpenseRequestController.destroySubmissionAttachment.url(
                             {

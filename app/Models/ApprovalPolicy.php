@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalPolicyDocumentType;
 use Database\Factories\ApprovalPolicyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ApprovalPolicy extends Model
 {
@@ -21,7 +22,8 @@ class ApprovalPolicy extends Model
         'document_type',
         'name',
         'version',
-        'requester_role_id',
+        'applies_to_type',
+        'applies_to_id',
         'effective_from',
         'effective_to',
         'is_active',
@@ -34,6 +36,7 @@ class ApprovalPolicy extends Model
     {
         return [
             'document_type' => ApprovalPolicyDocumentType::class,
+            'applies_to_type' => ApprovalApproverType::class,
             'effective_from' => 'date',
             'effective_to' => 'date',
             'is_active' => 'boolean',
@@ -41,11 +44,11 @@ class ApprovalPolicy extends Model
     }
 
     /**
-     * @return BelongsTo<Role, $this>
+     * @return MorphTo<Model, $this>
      */
-    public function requesterRole(): BelongsTo
+    public function appliesTo(): MorphTo
     {
-        return $this->belongsTo(Role::class, 'requester_role_id');
+        return $this->morphTo();
     }
 
     /**

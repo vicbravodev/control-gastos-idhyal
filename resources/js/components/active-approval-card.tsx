@@ -36,7 +36,7 @@ export default function ActiveApprovalCard({
             <CardHeader>
                 <CardTitle>Tu aprobación</CardTitle>
                 <CardDescription>
-                    Paso {approval.step_order} — {approval.role.name}
+                    Paso {approval.step_order} — {approval.approver.name}
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">

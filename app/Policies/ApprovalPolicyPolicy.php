@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\RoleSlug;
 use App\Models\ApprovalPolicy;
 use App\Models\User;
 
@@ -13,27 +12,27 @@ class ApprovalPolicyPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->allowsManagement($user);
+        return $user->hasAnyPermission(['approval_policy.view_any', 'approval_policy.manage']);
     }
 
     public function view(User $user, ApprovalPolicy $approvalPolicy): bool
     {
-        return $this->allowsManagement($user);
+        return $user->hasAnyPermission(['approval_policy.view_any', 'approval_policy.manage']);
     }
 
     public function create(User $user): bool
     {
-        return $this->allowsManagement($user);
+        return $user->hasPermission('approval_policy.manage');
     }
 
     public function update(User $user, ApprovalPolicy $approvalPolicy): bool
     {
-        return $this->allowsManagement($user);
+        return $user->hasPermission('approval_policy.manage');
     }
 
     public function delete(User $user, ApprovalPolicy $approvalPolicy): bool
     {
-        return $user->hasRole(RoleSlug::SuperAdmin);
+        return $user->hasPermission('approval_policy.delete');
     }
 
     public function restore(User $user, ApprovalPolicy $approvalPolicy): bool
@@ -44,10 +43,5 @@ class ApprovalPolicyPolicy
     public function forceDelete(User $user, ApprovalPolicy $approvalPolicy): bool
     {
         return false;
-    }
-
-    private function allowsManagement(User $user): bool
-    {
-        return $user->hasAnyRole(RoleSlug::SuperAdmin, RoleSlug::SecretarioGeneral);
     }
 }

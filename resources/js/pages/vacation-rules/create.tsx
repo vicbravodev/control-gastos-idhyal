@@ -47,7 +47,7 @@ export default function VacationRulesCreate() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Nueva regla de vacaciones" />
-            <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 animate-fade-in">
+            <div className="mx-auto flex w-full max-w-3xl animate-fade-in flex-col gap-4 p-4">
                 <Heading
                     title="Nueva regla"
                     description="Define un tramo de antigüedad y los días de derecho anual."
@@ -57,10 +57,7 @@ export default function VacationRulesCreate() {
                         <CardTitle>Datos</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={submit}
-                            className="flex flex-col gap-4"
-                        >
+                        <form onSubmit={submit} className="flex flex-col gap-4">
                             <div className="grid gap-2 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="code">Código</Label>
@@ -283,7 +280,9 @@ export default function VacationRulesCreate() {
                                     Guardar
                                 </Button>
                                 <Button variant="outline" asChild>
-                                    <Link href={VacationRuleController.index.url()}>
+                                    <Link
+                                        href={VacationRuleController.index.url()}
+                                    >
                                         Cancelar
                                     </Link>
                                 </Button>

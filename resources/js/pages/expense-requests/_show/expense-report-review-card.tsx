@@ -64,13 +64,8 @@ export default function ExpenseReportReviewCard({
                         />
                         <InputError message={approveForm.errors.note} />
                     </div>
-                    <InputError
-                        message={approveForm.errors.expense_report}
-                    />
-                    <Button
-                        type="submit"
-                        disabled={approveForm.processing}
-                    >
+                    <InputError message={approveForm.errors.expense_report} />
+                    <Button type="submit" disabled={approveForm.processing}>
                         <CheckCircle2 className="mr-1.5 size-3.5" />
                         {approveForm.processing
                             ? 'Procesando…'
@@ -99,9 +94,7 @@ export default function ExpenseReportReviewCard({
                         />
                         <InputError message={rejectForm.errors.note} />
                     </div>
-                    <InputError
-                        message={rejectForm.errors.expense_report}
-                    />
+                    <InputError message={rejectForm.errors.expense_report} />
                     <Button
                         type="submit"
                         variant="destructive"

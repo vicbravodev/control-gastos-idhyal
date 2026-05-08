@@ -2,9 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -78,6 +81,16 @@ class UserFactory extends Factory
                 ['slug' => $slug],
                 ['name' => $name ?? ucfirst(str_replace('_', ' ', $slug))],
             );
+
+            // For known seeded roles, sync the canonical permission set so tests
+            // that exercise policies don't need to manually seed permissions.
+            $mapping = RolePermissionSeeder::mapping();
+            if (isset($mapping[$slug])) {
+                if (Permission::query()->doesntExist()) {
+                    (new PermissionSeeder)->run();
+                }
+                RolePermissionSeeder::syncForKnownRole($role);
+            }
 
             return [
                 'role_id' => $role->id,

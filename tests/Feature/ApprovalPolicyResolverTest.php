@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\ApprovalPolicyDocumentType;
-use App\Enums\CombineWithNext;
+use App\Enums\ApprovalStepMode;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
 use App\Models\Role;
@@ -46,7 +46,7 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Default expense',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'effective_from' => null,
             'effective_to' => null,
             'is_active' => true,
@@ -54,8 +54,9 @@ class ApprovalPolicyResolverTest extends TestCase
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $conta->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $conta->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $resolved = $this->resolver->resolve(ApprovalPolicyDocumentType::ExpenseRequest, $user);
@@ -73,28 +74,30 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Default',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'is_active' => true,
         ]);
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $defaultPolicy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $specificPolicy = ApprovalPolicy::query()->create([
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Asesor-specific',
             'version' => 1,
-            'requester_role_id' => $asesor->id,
+            'applies_to_type' => 'role', 'applies_to_id' => $asesor->id,
             'is_active' => true,
         ]);
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $specificPolicy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $user = User::factory()->create(['role_id' => $asesor->id]);
@@ -112,28 +115,30 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::VacationRequest->value,
             'name' => 'V1',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'is_active' => true,
         ]);
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $older->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $newer = ApprovalPolicy::query()->create([
             'document_type' => ApprovalPolicyDocumentType::VacationRequest->value,
             'name' => 'V2',
             'version' => 2,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'is_active' => true,
         ]);
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $newer->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $user = User::factory()->create(['role_id' => $coord->id]);
@@ -152,7 +157,7 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Expired',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'effective_from' => '2020-01-01',
             'effective_to' => '2020-12-31',
             'is_active' => true,
@@ -160,15 +165,16 @@ class ApprovalPolicyResolverTest extends TestCase
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $expired->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $active = ApprovalPolicy::query()->create([
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Active',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'effective_from' => '2025-01-01',
             'effective_to' => null,
             'is_active' => true,
@@ -176,8 +182,9 @@ class ApprovalPolicyResolverTest extends TestCase
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $active->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $resolved = $this->resolver->resolve(
@@ -198,7 +205,7 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Off',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'is_active' => false,
         ]);
 
@@ -206,14 +213,15 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'On',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'is_active' => true,
         ]);
         ApprovalPolicyStep::query()->create([
             'approval_policy_id' => $on->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And->value,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential->value,
         ]);
 
         $resolved = $this->resolver->resolve(ApprovalPolicyDocumentType::ExpenseRequest, $user);
@@ -230,7 +238,7 @@ class ApprovalPolicyResolverTest extends TestCase
             'document_type' => ApprovalPolicyDocumentType::ExpenseRequest->value,
             'name' => 'Empty',
             'version' => 1,
-            'requester_role_id' => null,
+            'applies_to_type' => null, 'applies_to_id' => null,
             'is_active' => true,
         ]);
 

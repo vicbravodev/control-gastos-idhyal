@@ -1,14 +1,10 @@
 import { Download, FileText } from 'lucide-react';
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCentsMx } from '@/lib/money';
-import { DataRow, type PaymentSummary } from './types';
+import { DataRow } from './types';
+import type { PaymentSummary } from './types';
 
 export default function PaymentSummaryCard({
     expenseRequestId,

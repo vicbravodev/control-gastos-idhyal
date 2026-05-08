@@ -3,7 +3,6 @@
 namespace App\Services\ExpenseRequests;
 
 use App\Enums\ApprovalPolicyDocumentType;
-use App\Enums\RoleSlug;
 use App\Models\ExpenseRequest;
 use App\Models\Payment;
 use App\Models\Settlement;
@@ -22,6 +21,8 @@ use App\Notifications\ExpenseRequests\SettlementPendingReminderNotification;
 use App\Services\Approvals\ApprovalPolicyResolver;
 use App\Services\Approvals\ApprovalStepGrouper;
 use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
+use App\Services\Approvals\ResolveApproversForStep;
+use Illuminate\Support\Collection;
 
 final class ExpenseRequestNotificationDispatcher
 {
@@ -50,21 +51,19 @@ final class ExpenseRequestNotificationDispatcher
         }
 
         $firstGroupOrders = $groups[0];
-        $roleIds = $expenseRequest->approvals
-            ->filter(fn ($a) => in_array($a->step_order, $firstGroupOrders, true))
-            ->pluck('role_id')
-            ->unique()
-            ->values()
-            ->all();
+        $approvalsInFirstGroup = $expenseRequest->approvals
+            ->filter(fn ($a) => in_array($a->step_order, $firstGroupOrders, true));
 
-        if ($roleIds === []) {
-            return;
+        $approverResolver = app(ResolveApproversForStep::class);
+
+        $approvers = collect();
+        foreach ($approvalsInFirstGroup as $approval) {
+            $approvers = $approvers->merge($approverResolver->resolveForApproval($approval));
         }
 
-        $approvers = User::query()
-            ->whereIn('role_id', $roleIds)
-            ->where('id', '!=', $expenseRequest->user_id)
-            ->get();
+        $approvers = $approvers->unique('id')
+            ->reject(fn (User $u): bool => $u->id === $expenseRequest->user_id)
+            ->values();
 
         foreach ($approvers as $approver) {
             $approver->notify(new ExpenseRequestSubmittedNotification($expenseRequest));
@@ -113,14 +112,23 @@ final class ExpenseRequestNotificationDispatcher
 
     public function notifyAccountingOnExpenseReportSubmitted(ExpenseRequest $expenseRequest): void
     {
-        $reviewers = User::query()
-            ->whereRelation('role', 'slug', RoleSlug::Contabilidad->value)
-            ->where('id', '!=', $expenseRequest->user_id)
-            ->get();
+        $reviewers = $this->usersWithPermission('expense_report.review')
+            ->reject(fn (User $u): bool => $u->id === $expenseRequest->user_id)
+            ->values();
 
         foreach ($reviewers as $reviewer) {
             $reviewer->notify(new ExpenseReportSubmittedForReviewNotification($expenseRequest));
         }
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function usersWithPermission(string $slug): Collection
+    {
+        return User::query()
+            ->whereHas('role.permissions', fn ($q) => $q->where('slug', $slug))
+            ->get();
     }
 
     public function notifyRequesterOnExpenseReportApproved(ExpenseRequest $expenseRequest, Settlement $settlement): void
@@ -175,10 +183,9 @@ final class ExpenseRequestNotificationDispatcher
             $requester->notify(new SettlementPendingReminderNotification($expenseRequest, $settlement));
         }
 
-        $reviewers = User::query()
-            ->whereRelation('role', 'slug', RoleSlug::Contabilidad->value)
-            ->where('id', '!=', $expenseRequest->user_id)
-            ->get();
+        $reviewers = $this->usersWithPermission('expense_request.record_settlement')
+            ->reject(fn (User $u): bool => $u->id === $expenseRequest->user_id)
+            ->values();
 
         foreach ($reviewers as $reviewer) {
             $reviewer->notify(new SettlementPendingReminderNotification($expenseRequest, $settlement));

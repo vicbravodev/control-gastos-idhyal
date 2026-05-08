@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\RoleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
@@ -19,6 +20,7 @@ class Role extends Model
     protected $fillable = [
         'slug',
         'name',
+        'description',
     ];
 
     /**
@@ -30,19 +32,27 @@ class Role extends Model
     }
 
     /**
-     * @return HasMany<ApprovalPolicyStep, $this>
+     * @return BelongsToMany<Permission, $this>
      */
-    public function approvalPolicySteps(): HasMany
+    public function permissions(): BelongsToMany
     {
-        return $this->hasMany(ApprovalPolicyStep::class);
+        return $this->belongsToMany(Permission::class, 'role_permissions')->withTimestamps();
     }
 
     /**
-     * @return HasMany<ApprovalPolicy, $this>
+     * @return MorphMany<ApprovalPolicy, $this>
      */
-    public function approvalPoliciesAsRequester(): HasMany
+    public function approvalPoliciesTargeting(): MorphMany
     {
-        return $this->hasMany(ApprovalPolicy::class, 'requester_role_id');
+        return $this->morphMany(ApprovalPolicy::class, 'appliesTo');
+    }
+
+    /**
+     * @return MorphMany<ApprovalPolicyStep, $this>
+     */
+    public function approvalPolicyStepsTargeting(): MorphMany
+    {
+        return $this->morphMany(ApprovalPolicyStep::class, 'approver');
     }
 
     /**

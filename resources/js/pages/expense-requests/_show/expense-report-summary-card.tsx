@@ -2,15 +2,10 @@ import { Download } from 'lucide-react';
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCentsMx } from '@/lib/money';
-import { DataRow  } from './types';
-import type {ExpenseReportSummary} from './types';
+import { DataRow } from './types';
+import type { ExpenseReportSummary } from './types';
 
 export default function ExpenseReportSummaryCard({
     expenseRequestId,
@@ -42,9 +37,7 @@ export default function ExpenseReportSummaryCard({
                         </span>
                     </DataRow>
                     {report.submitted_at && (
-                        <DataRow label="Enviada">
-                            {report.submitted_at}
-                        </DataRow>
+                        <DataRow label="Enviada">{report.submitted_at}</DataRow>
                     )}
                     <DataRow label="Documentos">
                         {report.document_type === 'factura'
@@ -116,7 +109,7 @@ export default function ExpenseReportSummaryCard({
                         </div>
                         {report.cfdi.conceptos.length > 0 && (
                             <div className="mt-3">
-                                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                <div className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                                     Conceptos
                                 </div>
                                 <ul className="space-y-1 text-sm">
@@ -129,7 +122,7 @@ export default function ExpenseReportSummaryCard({
                                                 {c.descripcion ?? '—'}
                                             </span>
                                             {c.importe != null && (
-                                                <span className="shrink-0 tabular-nums text-muted-foreground">
+                                                <span className="shrink-0 text-muted-foreground tabular-nums">
                                                     {formatCentsMx(
                                                         Math.round(
                                                             c.importe * 100,

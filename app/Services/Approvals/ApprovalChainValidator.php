@@ -25,7 +25,10 @@ final class ApprovalChainValidator
 
         foreach ($steps as $step) {
             $approval = $approvals->firstWhere('step_order', $step->step_order);
-            if ($approval === null || (int) $approval->role_id !== (int) $step->role_id) {
+            if ($approval === null
+                || $approval->approver_type !== $step->approver_type
+                || (int) $approval->approver_id !== (int) $step->approver_id
+            ) {
                 throw new InvalidApprovalStateException('Approval rows do not match the current policy steps.');
             }
         }

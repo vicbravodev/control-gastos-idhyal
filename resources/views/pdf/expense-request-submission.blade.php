@@ -55,7 +55,7 @@
             @foreach($expenseRequest->approvals->sortBy('step_order') as $a)
             <tr>
                 <td>{{ $a->step_order }}</td>
-                <td>{{ $a->role->name }}</td>
+                <td>{{ $a->approver_type->label() }}: {{ $a->approver?->name ?? "—" }}</td>
                 <td><span class="badge badge-pending">{{ $a->status->label() }}</span></td>
             </tr>
             @endforeach

@@ -41,6 +41,9 @@ class ExpenseRequestDocumentEventTimelinePresenter
             DocumentEventType::ExpenseReportRejected => 'Comprobación rechazada',
             DocumentEventType::SettlementLiquidationRecorded => 'Liquidación de balance registrada',
             DocumentEventType::SettlementClosed => 'Balance cerrado',
+            DocumentEventType::VacationRequestExpired => 'Solicitud expirada',
+            DocumentEventType::VacationEntitlementAdjusted => 'Ajuste de saldo de vacaciones',
+            DocumentEventType::ExpenseRequestReimbursementCreated => 'Reembolso directo registrado',
         };
     }
 

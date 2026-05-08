@@ -211,7 +211,7 @@ class ExpenseRequestController extends Controller
         $this->authorize('view', $expenseRequest);
 
         $expenseRequest->load([
-            'approvals.role',
+            'approvals.approver',
             'user',
             'expenseConcept',
             'attachments',
@@ -511,10 +511,11 @@ class ExpenseRequestController extends Controller
                 'id' => $a->id,
                 'step_order' => $a->step_order,
                 'status' => $a->status->value,
-                'role' => [
-                    'id' => $a->role->id,
-                    'name' => $a->role->name,
-                    'slug' => $a->role->slug,
+                'approver' => [
+                    'type' => $a->approver_type->value,
+                    'type_label' => $a->approver_type->label(),
+                    'id' => $a->approver_id,
+                    'name' => $a->approver?->name ?? '—',
                 ],
                 'note' => $a->note,
                 'acted_at' => $a->acted_at?->toIso8601String(),

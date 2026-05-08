@@ -2,17 +2,25 @@
 
 namespace App\Services\Approvals;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalPolicyDocumentType;
 use App\Models\ApprovalPolicy;
 use App\Models\User;
 use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class ApprovalPolicyResolver
 {
     /**
      * Resolve the active approval policy for a document type and requester.
+     *
+     * Precedence (most specific wins):
+     *   user → department → role → default (applies_to_type = null)
+     *
+     * Within a tier, highest version then highest id wins. If the chosen
+     * policy has no steps, falls through to the next tier.
      *
      * @throws NoActiveApprovalPolicyException
      */
@@ -42,31 +50,45 @@ class ApprovalPolicyResolver
             throw new NoActiveApprovalPolicyException('No active approval policy matches this document type and date.');
         }
 
-        $requesterRoleId = $requester->role_id;
+        $tiers = [
+            $this->filterByTarget($candidates, ApprovalApproverType::User, $requester->id),
+            $this->filterByTarget($candidates, ApprovalApproverType::Department, $requester->department_id),
+            $this->filterByTarget($candidates, ApprovalApproverType::Role, $requester->role_id),
+            $candidates->filter(fn (ApprovalPolicy $p): bool => $p->applies_to_type === null),
+        ];
 
-        $specific = $candidates->filter(
-            fn (ApprovalPolicy $policy): bool => $policy->requester_role_id !== null
-                && $policy->requester_role_id === $requesterRoleId
+        foreach ($tiers as $pool) {
+            if ($pool->isEmpty()) {
+                continue;
+            }
+
+            /** @var ApprovalPolicy|null $policy */
+            $policy = $pool->sortBy([
+                ['version', 'desc'],
+                ['id', 'desc'],
+            ])->first();
+
+            if ($policy !== null && $policy->steps->isNotEmpty()) {
+                return $policy;
+            }
+        }
+
+        throw new NoActiveApprovalPolicyException('No applicable approval policy with steps was found for this requester.');
+    }
+
+    /**
+     * @param  Collection<int, ApprovalPolicy>  $candidates
+     * @return Collection<int, ApprovalPolicy>
+     */
+    private function filterByTarget(Collection $candidates, ApprovalApproverType $type, int|string|null $id): Collection
+    {
+        if ($id === null) {
+            return collect();
+        }
+
+        return $candidates->filter(
+            fn (ApprovalPolicy $p): bool => $p->applies_to_type === $type
+                && (int) $p->applies_to_id === (int) $id
         );
-
-        $pool = $specific->isNotEmpty()
-            ? $specific
-            : $candidates->filter(fn (ApprovalPolicy $policy): bool => $policy->requester_role_id === null);
-
-        if ($pool->isEmpty()) {
-            throw new NoActiveApprovalPolicyException('No default approval policy exists for this document type.');
-        }
-
-        /** @var ApprovalPolicy $policy */
-        $policy = $pool->sortBy([
-            ['version', 'desc'],
-            ['id', 'desc'],
-        ])->first();
-
-        if ($policy->steps->isEmpty()) {
-            throw new NoActiveApprovalPolicyException('The resolved approval policy has no steps.');
-        }
-
-        return $policy;
     }
 }

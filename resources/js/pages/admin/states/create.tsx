@@ -51,7 +51,7 @@ export default function AdminStatesCreate({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Nuevo estado" />
-            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 animate-fade-in">
+            <div className="relative mx-auto flex w-full max-w-2xl animate-fade-in flex-col gap-4 p-4">
                 <Heading
                     title="Nuevo estado"
                     description="Asigne una región padre, código único y nombre."
@@ -63,10 +63,7 @@ export default function AdminStatesCreate({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={submit}
-                            className="flex flex-col gap-5"
-                        >
+                        <form onSubmit={submit} className="flex flex-col gap-5">
                             <div className="grid gap-2">
                                 <Label htmlFor="region_id">Región</Label>
                                 <Select
@@ -124,7 +121,9 @@ export default function AdminStatesCreate({
                             <div className="flex flex-wrap gap-3 pt-2">
                                 <Button
                                     type="submit"
-                                    disabled={processing || regions.length === 0}
+                                    disabled={
+                                        processing || regions.length === 0
+                                    }
                                 >
                                     Guardar
                                 </Button>

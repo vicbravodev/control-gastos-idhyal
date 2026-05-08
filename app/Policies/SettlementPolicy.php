@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\RoleSlug;
 use App\Models\Settlement;
 use App\Models\User;
 
@@ -13,19 +12,19 @@ class SettlementPolicy
      */
     public function viewPendingBalances(User $user): bool
     {
-        return $user->hasExpenseRequestOversight();
+        return $user->hasPermission('expense_request.view_pending_balances');
     }
 
     public function viewAny(User $user): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('expense_request.record_settlement');
     }
 
     public function view(User $user, Settlement $settlement): bool
     {
         $settlement->loadMissing('expenseReport.expenseRequest');
 
-        if ($user->hasRole(RoleSlug::Contabilidad)) {
+        if ($user->hasPermission('expense_request.record_settlement')) {
             return true;
         }
 
@@ -34,12 +33,12 @@ class SettlementPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('expense_request.record_settlement');
     }
 
     public function update(User $user, Settlement $settlement): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('expense_request.record_settlement');
     }
 
     public function delete(User $user, Settlement $settlement): bool

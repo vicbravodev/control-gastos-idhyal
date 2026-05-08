@@ -128,7 +128,7 @@ class VacationRequestController extends Controller
     ): InertiaResponse {
         $this->authorize('view', $vacation_request);
 
-        $vacation_request->load(['approvals.role', 'user']);
+        $vacation_request->load(['approvals.approver', 'user']);
         $user = auth()->user();
 
         return Inertia::render('vacation-requests/show', [
@@ -186,10 +186,11 @@ class VacationRequestController extends Controller
                 'id' => $a->id,
                 'step_order' => $a->step_order,
                 'status' => $a->status->value,
-                'role' => [
-                    'id' => $a->role->id,
-                    'name' => $a->role->name,
-                    'slug' => $a->role->slug,
+                'approver' => [
+                    'type' => $a->approver_type->value,
+                    'type_label' => $a->approver_type->label(),
+                    'id' => $a->approver_id,
+                    'name' => $a->approver?->name ?? '—',
                 ],
                 'note' => $a->note,
                 'acted_at' => $a->acted_at?->toIso8601String(),

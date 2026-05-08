@@ -1,12 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Pencil, Palmtree, Trash2 } from 'lucide-react';
+import { Pencil, Palmtree, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+
 import VacationRuleController from '@/actions/App/Http/Controllers/VacationRules/VacationRuleController';
 import ConfirmationDialog from '@/components/confirmation-dialog';
 import { EmptyState } from '@/components/empty-state';
-import Heading from '@/components/heading';
+import { PageHeader } from '@/components/idhyal';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -68,118 +68,115 @@ export default function VacationRulesIndex({ rules }: { rules: RuleRow[] }) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Reglas de vacaciones" />
-            <div className="flex animate-fade-in flex-col gap-4 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <Heading
-                        title="Reglas de vacaciones"
-                        description="Tramos de antigüedad, días anuales y límites por solicitud."
-                    />
-                    <Button asChild>
-                        <Link href={VacationRuleController.create.url()}>
-                            Nueva regla
-                        </Link>
-                    </Button>
-                </div>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Listado</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {rules.length === 0 ? (
-                            <EmptyState
-                                icon={Palmtree}
-                                title="Sin reglas"
-                                description="Crea la primera regla para habilitar cálculo de saldos."
-                                action={
-                                    <Button asChild size="sm">
-                                        <Link
-                                            href={VacationRuleController.create.url()}
-                                        >
-                                            Nueva regla
-                                        </Link>
-                                    </Button>
-                                }
-                            />
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Orden</TableHead>
-                                        <TableHead>Código</TableHead>
-                                        <TableHead>Nombre</TableHead>
-                                        <TableHead>Antigüedad</TableHead>
-                                        <TableHead className="text-right">
-                                            Días / año
-                                        </TableHead>
-                                        <TableHead className="text-right">
-                                            Máx. / sol.
-                                        </TableHead>
-                                        <TableHead className="w-[120px]" />
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {rules.map((row) => (
-                                        <TableRow key={row.id}>
-                                            <TableCell className="tabular-nums">
-                                                {row.sort_order}
-                                            </TableCell>
-                                            <TableCell className="font-mono text-sm">
-                                                {row.code}
-                                            </TableCell>
-                                            <TableCell>{row.name}</TableCell>
-                                            <TableCell className="text-sm text-muted-foreground">
-                                                {formatYearsRange(
-                                                    row.min_years_service,
-                                                    row.max_years_service,
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-right tabular-nums">
-                                                {row.days_granted_per_year}
-                                            </TableCell>
-                                            <TableCell className="text-right text-muted-foreground tabular-nums">
-                                                {row.max_days_per_request ??
-                                                    '—'}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        asChild
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <PageHeader
+                    eyebrow="Administración"
+                    title="Reglas de vacaciones"
+                    subtitle="Tramos de antigüedad, días anuales y límites por solicitud."
+                    actions={
+                        <Button asChild>
+                            <Link href={VacationRuleController.create.url()}>
+                                <Plus />
+                                Nueva regla
+                            </Link>
+                        </Button>
+                    }
+                />
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                    {rules.length === 0 ? (
+                        <EmptyState
+                            icon={Palmtree}
+                            title="Sin reglas"
+                            description="Crea la primera regla para habilitar cálculo de saldos."
+                            action={
+                                <Button asChild size="sm">
+                                    <Link
+                                        href={VacationRuleController.create.url()}
+                                    >
+                                        <Plus />
+                                        Nueva regla
+                                    </Link>
+                                </Button>
+                            }
+                        />
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-[var(--card-soft)]">
+                                    <TableHead>Orden</TableHead>
+                                    <TableHead>Código</TableHead>
+                                    <TableHead>Nombre</TableHead>
+                                    <TableHead>Antigüedad</TableHead>
+                                    <TableHead className="text-right">
+                                        Días / año
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        Máx. / sol.
+                                    </TableHead>
+                                    <TableHead className="w-[120px]" />
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {rules.map((row) => (
+                                    <TableRow key={row.id}>
+                                        <TableCell className="tabular-nums">
+                                            {row.sort_order}
+                                        </TableCell>
+                                        <TableCell className="font-mono text-sm">
+                                            {row.code}
+                                        </TableCell>
+                                        <TableCell>{row.name}</TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">
+                                            {formatYearsRange(
+                                                row.min_years_service,
+                                                row.max_years_service,
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right tabular-nums">
+                                            {row.days_granted_per_year}
+                                        </TableCell>
+                                        <TableCell className="text-right text-muted-foreground tabular-nums">
+                                            {row.max_days_per_request ?? '—'}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    asChild
+                                                >
+                                                    <Link
+                                                        href={VacationRuleController.edit.url(
+                                                            row.id,
+                                                        )}
                                                     >
-                                                        <Link
-                                                            href={VacationRuleController.edit.url(
-                                                                row.id,
-                                                            )}
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                            <span className="sr-only">
-                                                                Editar
-                                                            </span>
-                                                        </Link>
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setDeleteTarget(row)
-                                                        }
-                                                    >
-                                                        <Trash2 className="size-4 text-destructive" />
+                                                        <Pencil className="size-4" />
                                                         <span className="sr-only">
-                                                            Eliminar
+                                                            Editar
                                                         </span>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setDeleteTarget(row)
+                                                    }
+                                                >
+                                                    <Trash2 className="size-4 text-destructive" />
+                                                    <span className="sr-only">
+                                                        Eliminar
+                                                    </span>
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </div>
             </div>
             <ConfirmationDialog
                 open={deleteTarget !== null}

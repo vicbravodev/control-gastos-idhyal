@@ -1,13 +1,14 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Map, Pencil, Trash2 } from 'lucide-react';
+import { Map, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+
 import StateController from '@/actions/App/Http/Controllers/Admin/StateController';
 import ConfirmationDialog from '@/components/confirmation-dialog';
 import { EmptyState } from '@/components/empty-state';
-import Heading from '@/components/heading';
+import { PageHeader } from '@/components/idhyal';
 import { TableToolbar } from '@/components/table-toolbar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -70,105 +71,121 @@ export default function AdminStatesIndex({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Estados" />
-            <div className="flex flex-col gap-4 p-4 animate-fade-in">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <Heading
-                        title="Estados"
-                        description="Entidades federativas u homólogas, agrupadas bajo una región."
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <PageHeader
+                    eyebrow="Administración"
+                    title="Estados"
+                    subtitle="Entidades federativas u homólogas, agrupadas bajo una región."
+                    actions={
+                        <Button asChild>
+                            <Link href={StateController.create.url()}>
+                                <Plus />
+                                Nuevo estado
+                            </Link>
+                        </Button>
+                    }
+                />
+                <div className="rounded-xl border border-border bg-card p-3.5">
+                    <TableToolbar
+                        currentUrl={StateController.index.url()}
+                        filters={filters}
+                        searchPlaceholder="Buscar por nombre o código…"
+                        filterDefinitions={[
+                            {
+                                key: 'region',
+                                label: 'Región',
+                                options: regions,
+                                allLabel: 'Todas las regiones',
+                            },
+                        ]}
                     />
-                    <Button asChild>
-                        <Link href={StateController.create.url()}>
-                            Nuevo estado
-                        </Link>
-                    </Button>
                 </div>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Listado</CardTitle>
-                    </CardHeader>
-                    <div className="px-6 pb-4">
-                        <TableToolbar
-                            currentUrl={StateController.index.url()}
-                            filters={filters}
-                            searchPlaceholder="Buscar por nombre o código…"
-                            filterDefinitions={[
-                                {
-                                    key: 'region',
-                                    label: 'Región',
-                                    options: regions,
-                                    allLabel: 'Todas las regiones',
-                                },
-                            ]}
+                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                    {states.length === 0 ? (
+                        <EmptyState
+                            icon={Map}
+                            title="Sin estados"
+                            description="Cree estados vinculados a una región existente."
                         />
-                    </div>
-                    <CardContent>
-                        {states.length === 0 ? (
-                            <EmptyState
-                                icon={Map}
-                                title="Sin estados"
-                                description="Cree estados vinculados a una región existente."
-                            />
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Código</TableHead>
-                                        <TableHead>Nombre</TableHead>
-                                        <TableHead>Región</TableHead>
-                                        <TableHead className="w-[100px] text-right">
-                                            Acciones
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {states.map((s) => (
-                                        <TableRow key={s.id}>
-                                            <TableCell className="font-mono text-sm">
-                                                {s.code}
-                                            </TableCell>
-                                            <TableCell>{s.name}</TableCell>
-                                            <TableCell className="text-muted-foreground">
-                                                {regionLabel(s.region)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        asChild
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-[var(--card-soft)]">
+                                    <TableHead>Código</TableHead>
+                                    <TableHead>Nombre</TableHead>
+                                    <TableHead>Región</TableHead>
+                                    <TableHead className="w-[100px] text-right">
+                                        Acciones
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {states.map((s) => (
+                                    <TableRow key={s.id}>
+                                        <TableCell className="t-folio">
+                                            {s.code}
+                                        </TableCell>
+                                        <TableCell className="font-medium">
+                                            <span className="inline-flex items-center gap-2">
+                                                <MapPin
+                                                    className="size-4 text-[var(--brand-gold-700)]"
+                                                    aria-hidden
+                                                />
+                                                {s.name}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            {s.region ? (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="bg-[var(--brand-blue-50)] text-[var(--brand-blue-700)]"
+                                                >
+                                                    {regionLabel(s.region)}
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-muted-foreground">
+                                                    —
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    asChild
+                                                >
+                                                    <Link
+                                                        href={StateController.edit.url(
+                                                            s.id,
+                                                        )}
                                                     >
-                                                        <Link
-                                                            href={StateController.edit.url(
-                                                                s.id,
-                                                            )}
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                            <span className="sr-only">
-                                                                Editar
-                                                            </span>
-                                                        </Link>
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            setDeleteTarget(s)
-                                                        }
-                                                    >
-                                                        <Trash2 className="size-4" />
+                                                        <Pencil className="size-4" />
                                                         <span className="sr-only">
-                                                            Eliminar
+                                                            Editar
                                                         </span>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() =>
+                                                        setDeleteTarget(s)
+                                                    }
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                    <span className="sr-only">
+                                                        Eliminar
+                                                    </span>
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </div>
             </div>
             <ConfirmationDialog
                 open={deleteTarget !== null}

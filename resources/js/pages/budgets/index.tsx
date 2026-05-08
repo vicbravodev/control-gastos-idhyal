@@ -1,22 +1,20 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { Pencil, PiggyBank } from 'lucide-react';
+import { Pencil, PiggyBank, Plus } from 'lucide-react';
+
 import BudgetController from '@/actions/App/Http/Controllers/Budgets/BudgetController';
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
 import { EmptyState } from '@/components/empty-state';
-import Heading from '@/components/heading';
+import {
+    BudgetGauge,
+    InfoAlert,
+    PageHeader,
+    StatCard,
+} from '@/components/idhyal';
 import InputError from '@/components/input-error';
 import { PaginationNav } from '@/components/pagination-nav';
 import { TableToolbar } from '@/components/table-toolbar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCentsMx } from '@/lib/money';
 import { dashboard } from '@/routes';
@@ -59,12 +57,12 @@ function scopeKindLabel(kind: string): string {
     }
 }
 
-function usagePercent(spent: number, limit: number): number {
-    if (limit <= 0) {
-        return 0;
+function formatPeriod(starts: string | null, ends: string | null): string {
+    if (!starts && !ends) {
+        return 'Periodo abierto';
     }
 
-    return Math.min(100, Math.round((spent / limit) * 100));
+    return `${starts ?? '—'} → ${ends ?? '—'}`;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -83,185 +81,196 @@ export default function BudgetsIndex({
 }) {
     const page = usePage<{ errors?: { budget?: string } }>();
     const budgetError = page.props.errors?.budget;
+    const isEmpty = budgets.data.length === 0;
+
+    const totalLimit = budgets.data.reduce(
+        (acc, b) => acc + b.amount_limit_cents,
+        0,
+    );
+    const totalCommitted = budgets.data.reduce(
+        (acc, b) => acc + b.committed_cents,
+        0,
+    );
+    const totalSpent = budgets.data.reduce((acc, b) => acc + b.spent_cents, 0);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Presupuestos" />
-            <div className="flex flex-col gap-4 p-4 animate-fade-in">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <Heading
-                        title="Presupuestos"
-                        description="Cupo por periodo y alcance. Comprometido al aprobar; pagado al registrar pago."
-                    />
-                    <div className="flex flex-wrap gap-2">
-                        {can.create ? (
-                            <Button asChild>
-                                <Link href={BudgetController.create.url()}>
-                                    Nuevo presupuesto
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <PageHeader
+                    eyebrow="Administración"
+                    title="Presupuestos"
+                    subtitle="Cupo por periodo y alcance. Comprometido al aprobar; pagado al registrar pago."
+                    actions={
+                        <>
+                            <Button variant="outline" asChild>
+                                <Link
+                                    href={ExpenseRequestController.index.url()}
+                                >
+                                    Ir a solicitudes
                                 </Link>
                             </Button>
-                        ) : null}
-                        <Button variant="outline" asChild>
-                            <Link href={ExpenseRequestController.index.url()}>
-                                Ir a solicitudes
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
-                <InputError message={budgetError} />
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Listado</CardTitle>
-                    </CardHeader>
-                    <div className="px-6 pb-4">
-                        <TableToolbar
-                            currentUrl={BudgetController.index.url()}
-                            filters={filters}
-                            searchPlaceholder="Buscar por alcance…"
+                            {can.create ? (
+                                <Button asChild>
+                                    <Link href={BudgetController.create.url()}>
+                                        <Plus />
+                                        Nuevo presupuesto
+                                    </Link>
+                                </Button>
+                            ) : null}
+                        </>
+                    }
+                />
+
+                {budgetError ? (
+                    <InfoAlert tone="danger">
+                        <InputError message={budgetError} />
+                    </InfoAlert>
+                ) : null}
+
+                {!isEmpty ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <StatCard
+                            label="Total asignado"
+                            value={formatCentsMx(totalLimit)}
+                            hint={`${budgets.data.length} presupuestos visibles`}
+                        />
+                        <StatCard
+                            label="Comprometido"
+                            value={formatCentsMx(totalCommitted)}
+                            iconTone="gold"
+                        />
+                        <StatCard
+                            label="Pagado"
+                            value={formatCentsMx(totalSpent)}
                         />
                     </div>
-                    <CardContent>
-                        {budgets.data.length === 0 ? (
-                            <EmptyState
-                                icon={PiggyBank}
-                                title="Sin presupuestos"
-                                description="No hay presupuestos registrados en el sistema."
-                            />
-                        ) : (
-                            <>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Alcance</TableHead>
-                                            <TableHead>Periodo</TableHead>
-                                            <TableHead className="text-right">
-                                                Límite
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                Comprometido
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                Pagado
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                Disponible
-                                            </TableHead>
-                                            <TableHead className="w-[120px]">
-                                                Uso
-                                            </TableHead>
-                                            <TableHead className="w-[72px] text-right">
-                                                Editar
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {budgets.data.map((row) => {
-                                            const pct = usagePercent(
-                                                row.spent_cents,
-                                                row.amount_limit_cents,
-                                            );
+                ) : null}
 
-                                            return (
-                                                <TableRow key={row.id}>
-                                                    <TableCell>
-                                                        <div>
-                                                            <p className="font-medium">
-                                                                {
-                                                                    row.scope_label
-                                                                }
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {scopeKindLabel(
-                                                                    row.scope_kind,
-                                                                )}
-                                                                {row.priority !=
-                                                                    null &&
-                                                                    ` · Prioridad ${row.priority}`}
-                                                            </p>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-muted-foreground">
-                                                        {row.period_starts_on ??
-                                                            '—'}{' '}
-                                                        →{' '}
-                                                        {row.period_ends_on ??
-                                                            '—'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right tabular-nums">
-                                                        {formatCentsMx(
-                                                            row.amount_limit_cents,
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-right tabular-nums">
-                                                        {formatCentsMx(
-                                                            row.committed_cents,
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-right tabular-nums">
-                                                        {formatCentsMx(
-                                                            row.spent_cents,
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium tabular-nums">
-                                                        {formatCentsMx(
-                                                            row.remaining_after_spend_cents,
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                                                                <div
-                                                                    className={`h-full rounded-full transition-all ${
-                                                                        pct >= 90
-                                                                            ? 'bg-destructive'
-                                                                            : pct >= 70
-                                                                              ? 'bg-amber-500'
-                                                                              : 'bg-primary'
-                                                                    }`}
-                                                                    style={{
-                                                                        width: `${pct}%`,
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                            <span className="w-8 text-right text-xs tabular-nums text-muted-foreground">
-                                                                {pct}%
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {row.can_edit ? (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                asChild
-                                                            >
-                                                                <Link
-                                                                    href={BudgetController.edit.url(
-                                                                        row.id,
-                                                                    )}
-                                                                >
-                                                                    <Pencil className="size-4" />
-                                                                    <span className="sr-only">
-                                                                        Editar
-                                                                    </span>
-                                                                </Link>
-                                                            </Button>
-                                                        ) : null}
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                                <PaginationNav
-                                    links={budgets.links}
-                                    currentPage={budgets.current_page}
-                                    lastPage={budgets.last_page}
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                <div className="rounded-xl border border-border bg-card p-3.5">
+                    <TableToolbar
+                        currentUrl={BudgetController.index.url()}
+                        filters={filters}
+                        searchPlaceholder="Buscar por alcance…"
+                    />
+                </div>
+
+                {isEmpty ? (
+                    <div className="overflow-hidden rounded-xl border border-border bg-card">
+                        <EmptyState
+                            icon={PiggyBank}
+                            title="Sin presupuestos"
+                            description="No hay presupuestos registrados en el sistema."
+                        />
+                    </div>
+                ) : (
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        {budgets.data.map((row) => {
+                            const pctRemaining =
+                                row.amount_limit_cents > 0
+                                    ? (row.remaining_after_spend_cents /
+                                          row.amount_limit_cents) *
+                                      100
+                                    : 0;
+                            const lowAlert = pctRemaining < 10;
+                            const warnAlert = !lowAlert && pctRemaining < 30;
+
+                            return (
+                                <article
+                                    key={row.id}
+                                    className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5"
+                                >
+                                    <header className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="bg-[var(--brand-blue-50)] text-[var(--brand-blue-700)]"
+                                                >
+                                                    {scopeKindLabel(
+                                                        row.scope_kind,
+                                                    )}
+                                                </Badge>
+                                                {row.priority != null ? (
+                                                    <span>
+                                                        Prioridad {row.priority}
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                            <h3 className="mt-1 text-base font-semibold tracking-[-0.01em]">
+                                                {row.scope_label}
+                                            </h3>
+                                            <p className="text-xs text-muted-foreground">
+                                                {formatPeriod(
+                                                    row.period_starts_on,
+                                                    row.period_ends_on,
+                                                )}
+                                            </p>
+                                        </div>
+                                        {row.can_edit ? (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                asChild
+                                            >
+                                                <Link
+                                                    href={BudgetController.edit.url(
+                                                        row.id,
+                                                    )}
+                                                >
+                                                    <Pencil className="size-4" />
+                                                    <span className="sr-only">
+                                                        Editar
+                                                    </span>
+                                                </Link>
+                                            </Button>
+                                        ) : null}
+                                    </header>
+                                    <div>
+                                        <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                                            <span>Asignado</span>
+                                            <span className="t-num text-base font-semibold text-foreground">
+                                                {formatCentsMx(
+                                                    row.amount_limit_cents,
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className="mt-3">
+                                            <BudgetGauge
+                                                assignedCents={
+                                                    row.amount_limit_cents
+                                                }
+                                                committedCents={
+                                                    row.committed_cents
+                                                }
+                                                spentCents={row.spent_cents}
+                                            />
+                                        </div>
+                                    </div>
+                                    {lowAlert ? (
+                                        <InfoAlert tone="danger">
+                                            Disponible &lt; 10%. Considera
+                                            ampliar o pausar nuevas solicitudes.
+                                        </InfoAlert>
+                                    ) : warnAlert ? (
+                                        <InfoAlert tone="warning">
+                                            Disponible &lt; 30%. Vigila el
+                                            consumo.
+                                        </InfoAlert>
+                                    ) : null}
+                                </article>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {!isEmpty ? (
+                    <PaginationNav
+                        links={budgets.links}
+                        currentPage={budgets.current_page}
+                        lastPage={budgets.last_page}
+                    />
+                ) : null}
             </div>
         </AppLayout>
     );

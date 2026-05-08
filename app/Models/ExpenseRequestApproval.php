@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use Database\Factories\ExpenseRequestApprovalFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ExpenseRequestApproval extends Model
 {
@@ -19,7 +21,8 @@ class ExpenseRequestApproval extends Model
     protected $fillable = [
         'expense_request_id',
         'step_order',
-        'role_id',
+        'approver_type',
+        'approver_id',
         'status',
         'approver_user_id',
         'note',
@@ -32,6 +35,7 @@ class ExpenseRequestApproval extends Model
     protected function casts(): array
     {
         return [
+            'approver_type' => ApprovalApproverType::class,
             'status' => ApprovalInstanceStatus::class,
             'acted_at' => 'datetime',
         ];
@@ -46,17 +50,21 @@ class ExpenseRequestApproval extends Model
     }
 
     /**
-     * @return BelongsTo<Role, $this>
+     * The expected approver target (Role | Department | User).
+     *
+     * @return MorphTo<Model, $this>
      */
-    public function role(): BelongsTo
+    public function approver(): MorphTo
     {
-        return $this->belongsTo(Role::class);
+        return $this->morphTo();
     }
 
     /**
+     * The user who actually approved/rejected this step (if any).
+     *
      * @return BelongsTo<User, $this>
      */
-    public function approver(): BelongsTo
+    public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approver_user_id');
     }

@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Enums\RoleSlug;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Laravel\Horizon\HorizonApplicationServiceProvider;
@@ -33,7 +32,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
                 return true;
             }
 
-            return $user !== null && $user->hasRole(RoleSlug::SuperAdmin);
+            return $user !== null && $user->hasPermission(User::PERMISSION_BYPASS_ALL);
         });
     }
 }

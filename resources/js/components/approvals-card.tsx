@@ -66,7 +66,7 @@ export default function ApprovalsCard({
                             <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <span className="font-medium">
-                                        Paso {a.step_order} — {a.role.name}
+                                        Paso {a.step_order} — {a.approver.name}
                                     </span>
                                     <StatusBadge
                                         status={a.status}

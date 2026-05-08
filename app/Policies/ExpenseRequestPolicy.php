@@ -2,10 +2,10 @@
 
 namespace App\Policies;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
-use App\Enums\RoleSlug;
 use App\Enums\SettlementStatus;
 use App\Models\Attachment;
 use App\Models\ExpenseReport;
@@ -14,6 +14,7 @@ use App\Models\ExpenseRequestApproval;
 use App\Models\Payment;
 use App\Models\Settlement;
 use App\Models\User;
+use App\Services\Approvals\CanUserActOnApproval;
 
 class ExpenseRequestPolicy
 {
@@ -32,13 +33,31 @@ class ExpenseRequestPolicy
             return true;
         }
 
-        if ($user->role_id === null) {
-            return false;
-        }
+        return $this->hasPendingApprovalForUser($user, $expenseRequest);
+    }
 
+    private function hasPendingApprovalForUser(User $user, ExpenseRequest $expenseRequest): bool
+    {
         return $expenseRequest->approvals()
-            ->where('role_id', $user->role_id)
             ->where('status', ApprovalInstanceStatus::Pending)
+            ->where(function ($query) use ($user): void {
+                if ($user->role_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Role->value)
+                            ->where('approver_id', $user->role_id);
+                    });
+                }
+                if ($user->department_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Department->value)
+                            ->where('approver_id', $user->department_id);
+                    });
+                }
+                $query->orWhere(function ($q) use ($user): void {
+                    $q->where('approver_type', ApprovalApproverType::User->value)
+                        ->where('approver_id', $user->id);
+                });
+            })
             ->exists();
     }
 
@@ -323,7 +342,7 @@ class ExpenseRequestPolicy
 
     public function reviewExpenseReport(User $user, ExpenseRequest $expenseRequest): bool
     {
-        if (! $user->hasRole(RoleSlug::Contabilidad)) {
+        if (! $user->hasPermission('expense_report.review')) {
             return false;
         }
 
@@ -341,7 +360,7 @@ class ExpenseRequestPolicy
 
     public function recordSettlementLiquidation(User $user, ExpenseRequest $expenseRequest): bool
     {
-        if (! $user->hasRole(RoleSlug::Contabilidad)) {
+        if (! $user->hasPermission('expense_request.record_settlement')) {
             return false;
         }
 
@@ -368,7 +387,7 @@ class ExpenseRequestPolicy
 
     public function closeSettlement(User $user, ExpenseRequest $expenseRequest): bool
     {
-        if (! $user->hasRole(RoleSlug::Contabilidad)) {
+        if (! $user->hasPermission('expense_request.close_settlement')) {
             return false;
         }
 
@@ -427,14 +446,6 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        if ($user->role_id === null || $approval->role_id !== $user->role_id) {
-            return false;
-        }
-
-        if ($user->id === $expenseRequest->user_id) {
-            return false;
-        }
-
-        return true;
+        return app(CanUserActOnApproval::class)->check($user, $approval);
     }
 }

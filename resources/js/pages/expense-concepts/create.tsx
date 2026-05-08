@@ -36,7 +36,7 @@ export default function ExpenseConceptsCreate() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Nuevo concepto de gasto" />
-            <div className="relative mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 animate-fade-in">
+            <div className="relative mx-auto flex w-full max-w-2xl animate-fade-in flex-col gap-4 p-4">
                 <div
                     className="pointer-events-none absolute inset-0 -z-10 rounded-xl opacity-[0.06] dark:opacity-[0.1]"
                     style={{
@@ -55,10 +55,7 @@ export default function ExpenseConceptsCreate() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form
-                            onSubmit={submit}
-                            className="flex flex-col gap-5"
-                        >
+                        <form onSubmit={submit} className="flex flex-col gap-5">
                             <div className="grid gap-2">
                                 <Label htmlFor="name">Nombre</Label>
                                 <Input

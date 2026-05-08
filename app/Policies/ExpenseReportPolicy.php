@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Enums\ExpenseReportStatus;
-use App\Enums\RoleSlug;
 use App\Models\ExpenseReport;
 use App\Models\User;
 
@@ -11,7 +10,7 @@ class ExpenseReportPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('expense_report.view_any');
     }
 
     public function view(User $user, ExpenseReport $expenseReport): bool
@@ -22,7 +21,7 @@ class ExpenseReportPolicy
             return true;
         }
 
-        return $user->hasRole(RoleSlug::Contabilidad);
+        return $user->hasPermission('expense_report.view_any');
     }
 
     public function create(User $user): bool

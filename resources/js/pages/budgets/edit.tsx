@@ -205,10 +205,7 @@ export default function BudgetsEdit({
                                                 : undefined
                                         }
                                         onValueChange={(v) =>
-                                            setData(
-                                                'budgetable_id',
-                                                Number(v),
-                                            )
+                                            setData('budgetable_id', Number(v))
                                         }
                                         disabled={entityOptions.length === 0}
                                         required

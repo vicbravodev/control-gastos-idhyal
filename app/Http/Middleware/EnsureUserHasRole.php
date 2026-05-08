@@ -6,6 +6,10 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Legacy middleware: kept for backward compatibility with routes that gate
+ * by role slug. Prefer {@see EnsurePermission} for new routes.
+ */
 class EnsureUserHasRole
 {
     /**
@@ -22,7 +26,7 @@ class EnsureUserHasRole
         $allowedSlugs = array_filter(array_map(trim(...), explode('|', $roles)));
 
         foreach ($allowedSlugs as $slug) {
-            if ($user->hasRoleSlug($slug)) {
+            if ($user->role?->slug === $slug) {
                 return $next($request);
             }
         }

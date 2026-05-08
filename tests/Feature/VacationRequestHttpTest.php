@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ApprovalPolicyDocumentType;
-use App\Enums\CombineWithNext;
+use App\Enums\ApprovalStepMode;
 use App\Enums\VacationRequestStatus;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
@@ -39,14 +39,16 @@ class VacationRequestHttpTest extends TestCase
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 1,
-            'role_id' => $coord->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $coord->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
         ApprovalPolicyStep::factory()->create([
             'approval_policy_id' => $policy->id,
             'step_order' => 2,
-            'role_id' => $conta->id,
-            'combine_with_next' => CombineWithNext::And,
+            'approver_type' => 'role',
+            'approver_id' => $conta->id,
+            'step_mode' => ApprovalStepMode::Sequential,
         ]);
 
         return $policy;

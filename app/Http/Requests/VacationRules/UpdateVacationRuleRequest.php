@@ -3,6 +3,7 @@
 namespace App\Http\Requests\VacationRules;
 
 use App\Models\VacationRule;
+use App\Rules\VacationRuleRangeIntegrity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -49,7 +50,7 @@ class UpdateVacationRuleRequest extends FormRequest
                 Rule::unique(VacationRule::class, 'code')->ignore($rule->id),
             ],
             'name' => ['required', 'string', 'max:255'],
-            'min_years_service' => ['required', 'numeric', 'min:0'],
+            'min_years_service' => ['required', 'numeric', 'min:0', new VacationRuleRangeIntegrity($rule->id)],
             'max_years_service' => ['nullable', 'numeric', 'min:0'],
             'days_granted_per_year' => ['required', 'integer', 'min:0', 'max:65535'],
             'max_days_per_request' => ['nullable', 'integer', 'min:0', 'max:65535'],

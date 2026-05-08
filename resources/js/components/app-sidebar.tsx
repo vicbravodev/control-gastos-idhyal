@@ -6,6 +6,7 @@ import {
     FileBarChart,
     FileSearch,
     Inbox,
+    KeyRound,
     LayoutGrid,
     ListChecks,
     Layers3,
@@ -21,6 +22,7 @@ import {
 import { useMemo } from 'react';
 import DepartmentController from '@/actions/App/Http/Controllers/Admin/DepartmentController';
 import RegionController from '@/actions/App/Http/Controllers/Admin/RegionController';
+import RoleController from '@/actions/App/Http/Controllers/Admin/RoleController';
 import StaffUserController from '@/actions/App/Http/Controllers/Admin/StaffUserController';
 import StateController from '@/actions/App/Http/Controllers/Admin/StateController';
 import ApprovalPolicyController from '@/actions/App/Http/Controllers/ApprovalPolicies/ApprovalPolicyController';
@@ -50,21 +52,10 @@ import {
 import { dashboard } from '@/routes';
 import type { NavGroup } from '@/types';
 
-const EXPENSE_APPROVER_SLUGS = new Set([
-    'coord_regional',
-    'contabilidad',
-    'secretario_general',
-    'super_admin',
-]);
-
-const VACATION_APPROVER_SLUGS = new Set([
-    'secretario_general',
-    'super_admin',
-]);
-
 export function AppSidebar() {
     const { auth } = usePage().props;
-    const roleSlug = auth.user?.role?.slug;
+    const permissions = auth.user?.permissions ?? [];
+    const has = (slug: string) => permissions.includes(slug);
 
     const mainNavGroups = useMemo((): NavGroup[] => {
         const inicio: NavItem[] = [
@@ -83,7 +74,7 @@ export function AppSidebar() {
             },
         ];
 
-        if (roleSlug && EXPENSE_APPROVER_SLUGS.has(roleSlug)) {
+        if (has('expense_request.approve') || has('expense_request.reject')) {
             gastos.push({
                 title: 'Pendientes de aprobar',
                 href: ExpenseRequestApprovalController.pending.url(),
@@ -91,25 +82,23 @@ export function AppSidebar() {
             });
         }
 
-        if (roleSlug === 'contabilidad') {
-            gastos.push(
-                {
-                    title: 'Pagos pendientes',
-                    href: ExpenseRequestPaymentController.pending.url(),
-                    icon: Wallet,
-                },
-                {
-                    title: 'Comprobaciones por revisar',
-                    href: ExpenseReportController.pendingReview.url(),
-                    icon: FileSearch,
-                },
-            );
+        if (has('expense_request.record_payment') || has('payment.create')) {
+            gastos.push({
+                title: 'Pagos pendientes',
+                href: ExpenseRequestPaymentController.pending.url(),
+                icon: Wallet,
+            });
         }
 
-        if (
-            auth.user?.has_expense_request_oversight ||
-            roleSlug === 'super_admin'
-        ) {
+        if (has('expense_report.review')) {
+            gastos.push({
+                title: 'Comprobaciones por revisar',
+                href: ExpenseReportController.pendingReview.url(),
+                icon: FileSearch,
+            });
+        }
+
+        if (has('expense_request.view_pending_balances')) {
             gastos.push({
                 title: 'Balances pendientes',
                 href: ExpenseRequestSettlementController.pendingBalances.url(),
@@ -125,7 +114,7 @@ export function AppSidebar() {
             },
         ];
 
-        if (roleSlug && VACATION_APPROVER_SLUGS.has(roleSlug)) {
+        if (has('vacation_request.approve') || has('vacation_request.reject')) {
             vacaciones.push({
                 title: 'Vacaciones por aprobar',
                 href: VacationRequestApprovalController.pending.url(),
@@ -135,7 +124,7 @@ export function AppSidebar() {
 
         const reportes: NavItem[] = [];
 
-        if (auth.user?.can_view_reports) {
+        if (has('report.expenses.view')) {
             reportes.push({
                 title: 'Reportes de gastos',
                 href: ExpenseAnalyticsController.index.url(),
@@ -145,22 +134,23 @@ export function AppSidebar() {
 
         const administracion: NavItem[] = [];
 
-        if (auth.user?.can_manage_budgets) {
-            administracion.push(
-                {
-                    title: 'Conceptos de gasto',
-                    href: ExpenseConceptController.index.url(),
-                    icon: Layers3,
-                },
-                {
-                    title: 'Presupuestos',
-                    href: BudgetController.index.url(),
-                    icon: PiggyBank,
-                },
-            );
+        if (has('budget.manage') || has('budget.view_any')) {
+            administracion.push({
+                title: 'Presupuestos',
+                href: BudgetController.index.url(),
+                icon: PiggyBank,
+            });
         }
 
-        if (auth.user?.can_manage_vacation_rules) {
+        if (has('expense_concept.manage')) {
+            administracion.push({
+                title: 'Conceptos de gasto',
+                href: ExpenseConceptController.index.url(),
+                icon: Layers3,
+            });
+        }
+
+        if (has('vacation_rule.manage')) {
             administracion.push({
                 title: 'Reglas de vacaciones',
                 href: VacationRuleController.index.url(),
@@ -168,7 +158,7 @@ export function AppSidebar() {
             });
         }
 
-        if (auth.user?.can_manage_approval_policies) {
+        if (has('approval_policy.view_any') || has('approval_policy.manage')) {
             administracion.push({
                 title: 'Políticas de aprobación',
                 href: ApprovalPolicyController.index.url(),
@@ -176,29 +166,44 @@ export function AppSidebar() {
             });
         }
 
-        if (roleSlug === 'super_admin') {
-            administracion.push(
-                {
-                    title: 'Regiones',
-                    href: RegionController.index.url(),
-                    icon: MapPinned,
-                },
-                {
-                    title: 'Estados',
-                    href: StateController.index.url(),
-                    icon: Map,
-                },
-                {
-                    title: 'Departamentos',
-                    href: DepartmentController.index.url(),
-                    icon: Building2,
-                },
-                {
-                    title: 'Usuarios',
-                    href: StaffUserController.index.url(),
-                    icon: Users,
-                },
-            );
+        if (has('admin.users.manage') || has('admin.users.view')) {
+            administracion.push({
+                title: 'Usuarios',
+                href: StaffUserController.index.url(),
+                icon: Users,
+            });
+        }
+
+        if (has('admin.roles.manage')) {
+            administracion.push({
+                title: 'Roles',
+                href: RoleController.index.url(),
+                icon: KeyRound,
+            });
+        }
+
+        if (has('admin.departments.manage')) {
+            administracion.push({
+                title: 'Departamentos',
+                href: DepartmentController.index.url(),
+                icon: Building2,
+            });
+        }
+
+        if (has('admin.regions.manage')) {
+            administracion.push({
+                title: 'Regiones',
+                href: RegionController.index.url(),
+                icon: MapPinned,
+            });
+        }
+
+        if (has('admin.states.manage')) {
+            administracion.push({
+                title: 'Estados',
+                href: StateController.index.url(),
+                icon: Map,
+            });
         }
 
         return [
@@ -208,13 +213,7 @@ export function AppSidebar() {
             ...(reportes.length > 0 ? [{ label: 'Reportes', items: reportes }] : []),
             { label: 'Administración', items: administracion },
         ];
-    }, [
-        auth.user?.can_manage_approval_policies,
-        auth.user?.can_manage_budgets,
-        auth.user?.can_manage_vacation_rules,
-        auth.user?.has_expense_request_oversight,
-        roleSlug,
-    ]);
+    }, [permissions.join(',')]);
 
     return (
         <Sidebar collapsible="icon" variant="inset">

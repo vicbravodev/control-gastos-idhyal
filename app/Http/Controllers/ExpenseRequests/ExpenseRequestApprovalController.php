@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ExpenseRequests;
 
+use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Http\Controllers\Controller;
@@ -23,39 +24,63 @@ class ExpenseRequestApprovalController extends Controller
         $user = $request->user();
         $items = [];
 
-        if ($user->role_id !== null) {
-            $candidates = ExpenseRequestApproval::query()
-                ->where('status', ApprovalInstanceStatus::Pending)
-                ->where('role_id', $user->role_id)
-                ->whereHas('expenseRequest', fn ($q) => $q->where('status', ExpenseRequestStatus::ApprovalInProgress))
-                ->with(['expenseRequest.user', 'expenseRequest.expenseConcept', 'role'])
-                ->orderByDesc('id')
-                ->get();
+        $candidates = ExpenseRequestApproval::query()
+            ->where('status', ApprovalInstanceStatus::Pending)
+            ->where(function ($query) use ($user): void {
+                if ($user->role_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Role->value)
+                            ->where('approver_id', $user->role_id);
+                    });
+                }
+                if ($user->department_id !== null) {
+                    $query->orWhere(function ($q) use ($user): void {
+                        $q->where('approver_type', ApprovalApproverType::Department->value)
+                            ->where('approver_id', $user->department_id);
+                    });
+                }
+                $query->orWhere(function ($q) use ($user): void {
+                    $q->where('approver_type', ApprovalApproverType::User->value)
+                        ->where('approver_id', $user->id);
+                });
+            })
+            ->whereHas('expenseRequest', fn ($q) => $q->where('status', ExpenseRequestStatus::ApprovalInProgress))
+            ->with(['expenseRequest.user', 'expenseRequest.expenseConcept', 'approver'])
+            ->orderByDesc('id')
+            ->get();
 
-            foreach ($candidates as $approval) {
-                if (! $approvalService->isPendingStepActive($approval)) {
-                    continue;
-                }
-                if (! $user->can('approve', $approval)) {
-                    continue;
-                }
-                $expense = $approval->expenseRequest;
-                $items[] = [
-                    'approval_id' => $approval->id,
-                    'expense_request_id' => $expense->id,
-                    'folio' => $expense->folio,
-                    'concept_label' => $expense->conceptLabel(),
-                    'requested_amount_cents' => $expense->requested_amount_cents,
-                    'requester_name' => $expense->user->name,
-                    'step_order' => $approval->step_order,
-                    'role_name' => $approval->role->name,
-                ];
+        foreach ($candidates as $approval) {
+            if (! $approvalService->isPendingStepActive($approval)) {
+                continue;
             }
+            if (! $user->can('approve', $approval)) {
+                continue;
+            }
+            $expense = $approval->expenseRequest;
+            $items[] = [
+                'approval_id' => $approval->id,
+                'expense_request_id' => $expense->id,
+                'folio' => $expense->folio,
+                'concept_label' => $expense->conceptLabel(),
+                'requested_amount_cents' => $expense->requested_amount_cents,
+                'requester_name' => $expense->user->name,
+                'step_order' => $approval->step_order,
+                'approver_label' => $this->approverLabel($approval),
+            ];
         }
 
         return Inertia::render('expense-requests/approvals/pending', [
             'items' => $items,
         ]);
+    }
+
+    private function approverLabel(ExpenseRequestApproval $approval): string
+    {
+        $entity = $approval->approver;
+        $type = $approval->approver_type->label();
+        $name = $entity?->name ?? $entity?->display_name ?? '—';
+
+        return sprintf('%s: %s', $type, $name);
     }
 
     public function approve(

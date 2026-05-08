@@ -2,6 +2,7 @@
 
 namespace App\Services\Approvals;
 
+use App\Enums\ApprovalGroupCombinator;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ApprovalPolicyDocumentType;
 use App\Enums\DocumentEventType;
@@ -43,7 +44,8 @@ class ExpenseRequestApprovalService
                 ExpenseRequestApproval::query()->create([
                     'expense_request_id' => $expenseRequest->id,
                     'step_order' => $step->step_order,
-                    'role_id' => $step->role_id,
+                    'approver_type' => $step->approver_type,
+                    'approver_id' => $step->approver_id,
                     'status' => ApprovalInstanceStatus::Pending,
                 ]);
             }
@@ -78,8 +80,9 @@ class ExpenseRequestApprovalService
             $approvals = $expenseRequest->approvals->sortBy('step_order')->values();
             ApprovalChainValidator::assertApprovalsMatchPolicy($approvals, $policy);
 
-            $groups = ApprovalStepGrouper::stepOrderGroups($policy->steps->sortBy('step_order')->values());
-            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups);
+            $orderedSteps = $policy->steps->sortBy('step_order')->values();
+            $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
+            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups, $orderedSteps);
             if ($activeIndex === null) {
                 throw new InvalidApprovalStateException('Approval chain is already complete.');
             }
@@ -95,12 +98,17 @@ class ExpenseRequestApprovalService
                 'acted_at' => now(),
             ]);
 
-            foreach ($expenseRequest->approvals as $peer) {
-                if ($peer->id === $approval->id) {
-                    continue;
-                }
-                if (in_array($peer->step_order, $activeOrders, true) && $peer->status === ApprovalInstanceStatus::Pending) {
-                    $peer->update(['status' => ApprovalInstanceStatus::Skipped]);
+            // Only skip peers in AnyOf groups (one approval satisfies the group).
+            // In AllOf groups every step must independently be approved.
+            $combinator = ApprovalStepGrouper::groupCombinator($orderedSteps, $activeOrders);
+            if ($combinator === ApprovalGroupCombinator::AnyOf) {
+                foreach ($expenseRequest->approvals as $peer) {
+                    if ($peer->id === $approval->id) {
+                        continue;
+                    }
+                    if (in_array($peer->step_order, $activeOrders, true) && $peer->status === ApprovalInstanceStatus::Pending) {
+                        $peer->update(['status' => ApprovalInstanceStatus::Skipped]);
+                    }
                 }
             }
 
@@ -108,7 +116,7 @@ class ExpenseRequestApprovalService
             $expenseRequest->load('approvals');
             $refreshedApprovals = $expenseRequest->approvals->sortBy('step_order')->values();
 
-            $allDone = ApprovalStepGrouper::firstIncompleteGroupIndex($refreshedApprovals, $groups) === null;
+            $allDone = ApprovalStepGrouper::firstIncompleteGroupIndex($refreshedApprovals, $groups, $orderedSteps) === null;
             if ($allDone) {
                 $expenseRequest->update([
                     'status' => ExpenseRequestStatus::PendingPayment,
@@ -163,8 +171,9 @@ class ExpenseRequestApprovalService
             );
             $approvals = $expenseRequest->approvals->sortBy('step_order')->values();
             ApprovalChainValidator::assertApprovalsMatchPolicy($approvals, $policy);
-            $groups = ApprovalStepGrouper::stepOrderGroups($policy->steps->sortBy('step_order')->values());
-            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups);
+            $orderedSteps = $policy->steps->sortBy('step_order')->values();
+            $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
+            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups, $orderedSteps);
             if ($activeIndex === null) {
                 return false;
             }
@@ -205,8 +214,9 @@ class ExpenseRequestApprovalService
             $approvals = $expenseRequest->approvals->sortBy('step_order')->values();
             ApprovalChainValidator::assertApprovalsMatchPolicy($approvals, $policy);
 
-            $groups = ApprovalStepGrouper::stepOrderGroups($policy->steps->sortBy('step_order')->values());
-            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups);
+            $orderedSteps = $policy->steps->sortBy('step_order')->values();
+            $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
+            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups, $orderedSteps);
             if ($activeIndex === null) {
                 throw new InvalidApprovalStateException('Approval chain is already complete.');
             }

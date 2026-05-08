@@ -1,19 +1,11 @@
 import { Head, Link } from '@inertiajs/react';
-import { Inbox } from 'lucide-react';
+import { ArrowRight, Inbox } from 'lucide-react';
+
 import ExpenseRequestApprovalController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestApprovalController';
 import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
 import { EmptyState } from '@/components/empty-state';
-import Heading from '@/components/heading';
+import { ListTable, PageHeader } from '@/components/idhyal';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCentsMx } from '@/lib/money';
 import { dashboard } from '@/routes';
@@ -43,84 +35,99 @@ export default function PendingExpenseRequestApprovals({
 }: {
     items: PendingItem[];
 }) {
+    const isEmpty = items.length === 0;
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Pendientes de aprobar" />
-            <div className="flex flex-col gap-4 p-4 animate-fade-in">
-                <Heading
-                    title="Solicitudes pendientes de tu aprobación"
-                    description="Solo se listan pasos activos según la política de aprobación."
+            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+                <PageHeader
+                    eyebrow="Gastos"
+                    title="Pendientes de tu aprobación"
+                    subtitle="Solo se listan pasos activos según la política de aprobación."
                 />
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Bandeja</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {items.length === 0 ? (
-                            <EmptyState
-                                icon={Inbox}
-                                title="Sin aprobaciones pendientes"
-                                description="No tienes aprobaciones activas en este momento."
-                            />
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Folio</TableHead>
-                                        <TableHead>Solicitante</TableHead>
-                                        <TableHead>Concepto</TableHead>
-                                        <TableHead>Paso</TableHead>
-                                        <TableHead className="text-right">
-                                            Monto
-                                        </TableHead>
-                                        <TableHead />
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {items.map((row) => (
-                                        <TableRow
-                                            key={`${row.expense_request_id}-${row.approval_id}`}
+
+                {isEmpty ? (
+                    <div className="overflow-hidden rounded-xl border border-border bg-card">
+                        <EmptyState
+                            icon={Inbox}
+                            title="Sin aprobaciones pendientes"
+                            description="No tienes aprobaciones activas en este momento."
+                        />
+                    </div>
+                ) : (
+                    <ListTable aria-label="Pendientes de aprobar">
+                        <thead>
+                            <tr>
+                                <th>Folio</th>
+                                <th>Solicitante</th>
+                                <th>Concepto</th>
+                                <th>Paso</th>
+                                <th className="is-num">Monto</th>
+                                <th aria-label="Acciones" />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {items.map((row) => (
+                                <tr
+                                    key={`${row.expense_request_id}-${row.approval_id}`}
+                                >
+                                    <td>
+                                        <Link
+                                            href={ExpenseRequestController.show.url(
+                                                row.expense_request_id,
+                                            )}
+                                            className="folio hover:underline"
                                         >
-                                            <TableCell className="font-medium">
-                                                {row.folio ??
-                                                    `#${row.expense_request_id}`}
-                                            </TableCell>
-                                            <TableCell>
-                                                {row.requester_name}
-                                            </TableCell>
-                                            <TableCell className="max-w-[200px]">
-                                                <span className="line-clamp-1">
-                                                    {row.concept_label}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-muted-foreground">
-                                                Paso {row.step_order} (
-                                                {row.role_name})
-                                            </TableCell>
-                                            <TableCell className="text-right font-medium tabular-nums">
-                                                {formatCentsMx(
-                                                    row.requested_amount_cents,
+                                            {row.folio ??
+                                                `#${row.expense_request_id}`}
+                                        </Link>
+                                    </td>
+                                    <td>
+                                        <span className="font-medium text-foreground">
+                                            {row.requester_name}
+                                        </span>
+                                    </td>
+                                    <td className="max-w-[280px]">
+                                        <span className="line-clamp-1 text-sm text-muted-foreground">
+                                            {row.concept_label}
+                                        </span>
+                                    </td>
+                                    <td className="text-muted-foreground">
+                                        Paso {row.step_order}
+                                        <div className="text-xs text-[var(--subtle-fg)]">
+                                            {row.role_name}
+                                        </div>
+                                    </td>
+                                    <td className="is-num">
+                                        <span className="t-money">
+                                            {formatCentsMx(
+                                                row.requested_amount_cents,
+                                            )}
+                                        </span>
+                                    </td>
+                                    <td className="is-num">
+                                        <Button
+                                            size="sm"
+                                            variant="brand-soft"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={ExpenseRequestController.show.url(
+                                                    row.expense_request_id,
                                                 )}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button size="sm" asChild>
-                                                    <Link
-                                                        href={ExpenseRequestController.show.url(
-                                                            row.expense_request_id,
-                                                        )}
-                                                        prefetch
-                                                    >
-                                                        Abrir
-                                                    </Link>
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
+                                                prefetch
+                                            >
+                                                Abrir
+                                                <ArrowRight />
+                                            </Link>
+                                        </Button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </ListTable>
+                )}
             </div>
         </AppLayout>
     );

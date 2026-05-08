@@ -9,27 +9,27 @@ class BudgetPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasAnyPermission(['budget.view_any', 'budget.manage']);
     }
 
     public function view(User $user, Budget $budget): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasAnyPermission(['budget.view_any', 'budget.manage']);
     }
 
     public function create(User $user): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('budget.manage');
     }
 
     public function update(User $user, Budget $budget): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('budget.manage');
     }
 
     public function delete(User $user, Budget $budget): bool
     {
-        return $user->canManageBudgetsAndPolicies();
+        return $user->hasPermission('budget.manage');
     }
 
     public function restore(User $user, Budget $budget): bool

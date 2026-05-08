@@ -69,7 +69,8 @@ class ExpenseRequestAuthorizationTest extends TestCase
         ExpenseRequestApproval::factory()->create([
             'expense_request_id' => $expenseRequest->id,
             'step_order' => 1,
-            'role_id' => $approver->role_id,
+            'approver_type' => 'role',
+            'approver_id' => $approver->role_id,
             'status' => ApprovalInstanceStatus::Pending,
         ]);
 

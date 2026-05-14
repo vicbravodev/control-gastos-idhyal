@@ -3,9 +3,9 @@
 namespace Tests\Feature;
 
 use App\Enums\ExpenseRequestStatus;
-use App\Models\ExpenseConcept;
 use App\Models\ExpenseRequest;
 use App\Models\Region;
+use App\Models\ReportTemplate;
 use App\Models\State;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -65,13 +65,14 @@ class ExpenseAnalyticsHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->has('summary')
-                ->has('summary.total_count')
-                ->has('summary.total_requested_cents')
-                ->has('summary.total_approved_cents')
-                ->has('summary.total_paid_cents')
-                ->has('summary.by_status')
-                ->has('expenseRequests')
+                ->has('kpis.total_count')
+                ->has('kpis.total_requested_cents')
+                ->has('kpis.total_approved_cents')
+                ->has('kpis.total_paid_cents')
+                ->has('byStatus', 13)
+                ->has('templates')
+                ->has('period.id')
+                ->has('period.range_label')
                 ->has('filters')
             );
     }
@@ -105,7 +106,7 @@ class ExpenseAnalyticsHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->where('summary.total_count', 1)
+                ->where('kpis.total_count', 1)
                 ->where('filters.status', 'approved')
             );
     }
@@ -137,7 +138,7 @@ class ExpenseAnalyticsHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->where('summary.total_count', 2)
+                ->where('kpis.total_count', 2)
             );
     }
 
@@ -166,7 +167,7 @@ class ExpenseAnalyticsHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->where('summary.total_count', 1)
+                ->where('kpis.total_count', 1)
             );
     }
 
@@ -190,7 +191,7 @@ class ExpenseAnalyticsHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->where('summary.total_count', 1)
+                ->where('kpis.total_count', 1)
             );
     }
 
@@ -228,7 +229,26 @@ class ExpenseAnalyticsHttpTest extends TestCase
         $response->assertHeader('content-type', 'application/pdf');
     }
 
-    public function test_summary_counts_match_statuses(): void
+    public function test_contabilidad_can_export_csv(): void
+    {
+        $this->seedRoles();
+
+        $user = User::factory()->forRole('contabilidad')->create();
+
+        ExpenseRequest::factory()->count(2)->create([
+            'status' => ExpenseRequestStatus::Submitted,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->get(route('reports.expenses.export', ['format' => 'csv']));
+
+        $response->assertOk();
+        $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $body = $response->streamedContent();
+        $this->assertStringContainsString('Folio,Solicitante', $body);
+    }
+
+    public function test_by_status_returns_all_status_cases(): void
     {
         $this->seedRoles();
 
@@ -243,23 +263,95 @@ class ExpenseAnalyticsHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->where('summary.total_count', 6)
-                ->has('summary.by_status', 3)
+                ->where('kpis.total_count', 6)
+                ->has('byStatus', 13)
             );
     }
 
-    public function test_analytics_loads_filter_options_lazily(): void
+    public function test_kpis_include_previous_period_when_compare_enabled(): void
     {
         $this->seedRoles();
 
         $user = User::factory()->forRole('contabilidad')->create();
 
+        ExpenseRequest::factory()->create([
+            'status' => ExpenseRequestStatus::Submitted,
+            'requested_amount_cents' => 100_00,
+            'created_at' => now()->subDays(2),
+        ]);
+        ExpenseRequest::factory()->create([
+            'status' => ExpenseRequestStatus::Submitted,
+            'requested_amount_cents' => 50_00,
+            'created_at' => now()->subDays(35),
+        ]);
+
         $this->actingAs($user)
-            ->get(route('reports.expenses.index'))
+            ->get(route('reports.expenses.index', [
+                'period' => 'l30',
+                'compare' => '1',
+            ]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('reports/index')
-                ->has('filters')
+                ->where('compare', true)
+                ->where('kpis.total_count', 1)
+                ->where('kpis.total_requested_cents', 100_00)
+                ->where('kpis.total_count_prev', 1)
+                ->where('kpis.total_requested_cents_prev', 50_00)
+                ->has('kpis.total_requested_cents_delta_pct')
+            );
+    }
+
+    public function test_template_id_loads_filters(): void
+    {
+        $this->seedRoles();
+
+        $user = User::factory()->forRole('contabilidad')->create();
+
+        $template = ReportTemplate::query()->create([
+            'owner_user_id' => null,
+            'slug' => 'test-builtin',
+            'name' => 'Test built-in',
+            'description' => null,
+            'icon' => 'bookmark',
+            'view' => 'pivote',
+            'group_by' => 'concepto',
+            'filters' => ['status' => 'approved', 'period' => 'ytd'],
+            'is_built_in' => true,
+            'is_shared' => true,
+        ]);
+
+        ExpenseRequest::factory()->create(['status' => ExpenseRequestStatus::Approved]);
+        ExpenseRequest::factory()->create(['status' => ExpenseRequestStatus::Submitted]);
+
+        $this->actingAs($user)
+            ->get(route('reports.expenses.index', ['template_id' => $template->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('reports/index')
+                ->where('view', 'pivote')
+                ->where('group_by', 'concepto')
+                ->where('filters.status', 'approved')
+                ->where('kpis.total_count', 1)
+                ->where('active_template_id', $template->id)
+                ->has('byDimension')
+            );
+    }
+
+    public function test_detail_view_returns_paginated_rows(): void
+    {
+        $this->seedRoles();
+
+        $user = User::factory()->forRole('contabilidad')->create();
+        ExpenseRequest::factory()->count(2)->create(['status' => ExpenseRequestStatus::Submitted]);
+
+        $this->actingAs($user)
+            ->get(route('reports.expenses.index', ['view' => 'detalle']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('reports/index')
+                ->where('view', 'detalle')
+                ->has('expenseRequests.data', 2)
             );
     }
 }

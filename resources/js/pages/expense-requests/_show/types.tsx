@@ -20,10 +20,40 @@ export type CfdiConcepto = {
     clave_prod_serv: string | null;
 };
 
+export type CfdiTraslado = {
+    impuesto: string;
+    impuesto_label: string;
+    tipo_factor: string;
+    tasa_o_cuota: number | null;
+    base_cents: number;
+    importe_cents: number;
+    nivel: 'document' | 'concept';
+    concepto_index: number | null;
+};
+
+export type CfdiRetencion = {
+    impuesto: string;
+    impuesto_label: string;
+    tipo_factor: string | null;
+    tasa_o_cuota: number | null;
+    base_cents: number | null;
+    importe_cents: number;
+    nivel: 'document' | 'concept';
+    concepto_index: number | null;
+};
+
+export type CfdiImpuestoLocal = {
+    clave: string;
+    tipo: 'traslado' | 'retencion';
+    tasa: number | null;
+    importe_cents: number;
+};
+
 export type CfdiSummary = {
     uuid: string;
     emisor_rfc: string | null;
     emisor_nombre: string | null;
+    emisor_regimen_fiscal: string | null;
     receptor_rfc: string | null;
     receptor_nombre: string | null;
     fecha: string | null;
@@ -33,19 +63,34 @@ export type CfdiSummary = {
     metodo_pago: string | null;
     uso_cfdi: string | null;
     conceptos: CfdiConcepto[];
+    has_hidrocarburos_complement: boolean;
+    traslados: CfdiTraslado[];
+    retenciones: CfdiRetencion[];
+    impuestos_locales: CfdiImpuestoLocal[];
 };
 
 export type ExpenseReportSummary = {
     id: number;
     status: string;
+    label: string | null;
     reported_amount_cents: number;
     document_type: 'factura' | 'recibo';
     document_type_label: string;
     submitted_at: string | null;
+    reviewer_name: string | null;
+    reviewed_at: string | null;
     has_pdf_and_xml: boolean;
     verification_pdf_attachment_id?: number | null;
     verification_xml_attachment_id?: number | null;
     cfdi: CfdiSummary | null;
+};
+
+export type BalanceSummary = {
+    approved_cents: number;
+    reported_cents: number;
+    remaining_cents: number;
+    over_cap: boolean;
+    over_cap_pending_extra_approval: boolean;
 };
 
 export type SettlementSummary = {
@@ -90,7 +135,8 @@ export type Detail = {
     approvals: ApprovalRow[];
     approval_progress: ApprovalProgress | null;
     payment: PaymentSummary | null;
-    expense_report: ExpenseReportSummary | null;
+    expense_reports: ExpenseReportSummary[];
+    balance: BalanceSummary;
     settlement: SettlementSummary | null;
     submission_attachments: SubmissionAttachmentRow[];
     document_timeline: DocumentTimelineRow[];

@@ -25,6 +25,7 @@ type DocumentType = 'factura' | 'recibo';
 type ReportFormState = {
     reported_amount_cents: number;
     document_type: DocumentType;
+    label: string;
     pdf: File | null;
     xml: File | null;
     expense_report?: string;
@@ -44,6 +45,7 @@ export default function ExpenseReportSubmitCard({
     const draftForm = useForm<ReportFormState>({
         reported_amount_cents: defaultReportedCents,
         document_type: 'factura',
+        label: '',
         pdf: null,
         xml: null,
     });
@@ -51,6 +53,7 @@ export default function ExpenseReportSubmitCard({
     const submitForm = useForm<ReportFormState>({
         reported_amount_cents: defaultReportedCents,
         document_type: 'factura',
+        label: '',
         pdf: null,
         xml: null,
     });
@@ -74,7 +77,9 @@ export default function ExpenseReportSubmitCard({
                         onSubmit={(e) => {
                             e.preventDefault();
                             draftForm.post(
-                                ExpenseReportController.storeDraft.url({
+                                ExpenseReportController.storeDraft[
+                                    '/expense-requests/{expenseRequest}/expense-reports/draft'
+                                ].url({
                                     expenseRequest: expenseRequestId,
                                 }),
                                 {
@@ -84,6 +89,22 @@ export default function ExpenseReportSubmitCard({
                             );
                         }}
                     >
+                        <div className="grid gap-2">
+                            <Label htmlFor="draft-label">
+                                Etiqueta (ej. Hotel, Vuelo, Viáticos)
+                            </Label>
+                            <Input
+                                id="draft-label"
+                                type="text"
+                                value={draftForm.data.label}
+                                onChange={(ev) =>
+                                    draftForm.setData('label', ev.target.value)
+                                }
+                                placeholder="Opcional"
+                                maxLength={80}
+                            />
+                            <InputError message={draftForm.errors.label} />
+                        </div>
                         <div className="grid gap-2">
                             <Label htmlFor="draft-document-type">
                                 Tipo de documento
@@ -192,7 +213,9 @@ export default function ExpenseReportSubmitCard({
                         onSubmit={(e) => {
                             e.preventDefault();
                             submitForm.post(
-                                ExpenseReportController.submit.url({
+                                ExpenseReportController.submit[
+                                    '/expense-requests/{expenseRequest}/expense-reports'
+                                ].url({
                                     expenseRequest: expenseRequestId,
                                 }),
                                 {
@@ -202,6 +225,22 @@ export default function ExpenseReportSubmitCard({
                             );
                         }}
                     >
+                        <div className="grid gap-2">
+                            <Label htmlFor="submit-label">
+                                Etiqueta (ej. Hotel, Vuelo, Viáticos)
+                            </Label>
+                            <Input
+                                id="submit-label"
+                                type="text"
+                                value={submitForm.data.label}
+                                onChange={(ev) =>
+                                    submitForm.setData('label', ev.target.value)
+                                }
+                                placeholder="Opcional"
+                                maxLength={80}
+                            />
+                            <InputError message={submitForm.errors.label} />
+                        </div>
                         <div className="grid gap-2">
                             <Label htmlFor="submit-document-type">
                                 Tipo de documento

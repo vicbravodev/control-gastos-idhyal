@@ -7,6 +7,13 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { edit } from '@/routes/profile';
@@ -28,6 +35,8 @@ export default function Profile({
     status?: string;
 }) {
     const { auth } = usePage().props;
+    const initialGender =
+        (auth.user.gender as string | null | undefined) ?? undefined;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -88,6 +97,39 @@ export default function Profile({
                                     <InputError
                                         className="mt-2"
                                         message={errors.email}
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="gender">Género</Label>
+
+                                    <Select
+                                        name="gender"
+                                        defaultValue={initialGender}
+                                    >
+                                        <SelectTrigger
+                                            id="gender"
+                                            className="mt-1 w-full"
+                                            data-test="profile-gender-trigger"
+                                        >
+                                            <SelectValue placeholder="Sin especificar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male">
+                                                Masculino
+                                            </SelectItem>
+                                            <SelectItem value="female">
+                                                Femenino
+                                            </SelectItem>
+                                            <SelectItem value="prefer_not_to_say">
+                                                Prefiero no especificar
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+
+                                    <InputError
+                                        className="mt-2"
+                                        message={errors.gender}
                                     />
                                 </div>
 

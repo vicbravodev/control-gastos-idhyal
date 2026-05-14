@@ -12,9 +12,9 @@ final class ExpenseRequestSettlementLiquidationReceiptPdf
 {
     public function download(ExpenseRequest $expenseRequest): Response
     {
-        $expenseRequest->loadMissing(['user', 'expenseConcept', 'expenseReport.settlement']);
+        $expenseRequest->loadMissing(['user', 'expenseConcept', 'settlement']);
 
-        $settlement = $expenseRequest->expenseReport?->settlement;
+        $settlement = $expenseRequest->settlement;
         if ($settlement === null) {
             throw new NotFoundHttpException;
         }

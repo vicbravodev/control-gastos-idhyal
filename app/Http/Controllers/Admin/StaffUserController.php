@@ -8,7 +8,6 @@ use App\Http\Requests\Admin\Users\UpdateStaffUserRequest;
 use App\Models\Department;
 use App\Models\Region;
 use App\Models\Role;
-use App\Models\State;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -61,6 +60,7 @@ class StaffUserController extends Controller
             'phone' => $request->filled('phone')
                 ? $request->string('phone')->toString()
                 : null,
+            'gender' => $request->filled('gender') ? $request->string('gender')->toString() : null,
             'password' => Hash::make($request->string('password')->toString()),
             'role_id' => $request->filled('role_id') ? $request->integer('role_id') : null,
             'region_id' => $request->filled('region_id') ? $request->integer('region_id') : null,
@@ -96,6 +96,7 @@ class StaffUserController extends Controller
             'phone' => $request->filled('phone')
                 ? $request->string('phone')->toString()
                 : null,
+            'gender' => $request->filled('gender') ? $request->string('gender')->toString() : null,
             'role_id' => $request->filled('role_id') ? $request->integer('role_id') : null,
             'region_id' => $request->filled('region_id') ? $request->integer('region_id') : null,
             'state_id' => $request->filled('state_id') ? $request->integer('state_id') : null,
@@ -131,6 +132,7 @@ class StaffUserController extends Controller
             'email' => $u->email,
             'username' => $u->username,
             'phone' => $u->phone,
+            'gender' => $u->gender?->value,
             'role_id' => $u->role_id,
             'region_id' => $u->region_id,
             'state_id' => $u->state_id,

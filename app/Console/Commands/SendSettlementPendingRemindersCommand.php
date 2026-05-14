@@ -25,12 +25,11 @@ class SendSettlementPendingRemindersCommand extends Command
                 SettlementStatus::PendingCompanyPayment,
             ])
             ->where('created_at', '<=', now()->subDay())
-            ->with(['expenseReport.expenseRequest.user'])
+            ->with(['expenseRequest.user'])
             ->get();
 
         foreach ($settlements as $settlement) {
-            $report = $settlement->expenseReport;
-            $expenseRequest = $report?->expenseRequest;
+            $expenseRequest = $settlement->expenseRequest;
             if ($expenseRequest === null) {
                 continue;
             }

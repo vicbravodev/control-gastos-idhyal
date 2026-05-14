@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserGender;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -20,6 +21,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'email',
     'password',
     'phone',
+    'gender',
     'region_id',
     'state_id',
     'role_id',
@@ -53,6 +55,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'hire_date' => 'date',
+            'gender' => UserGender::class,
         ];
     }
 

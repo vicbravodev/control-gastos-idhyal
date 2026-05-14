@@ -53,7 +53,7 @@ class SettlementLiquidationHttpTest extends TestCase
         ]);
 
         Settlement::query()->create([
-            'expense_report_id' => $report->id,
+            'expense_request_id' => $expenseRequest->id,
             'status' => SettlementStatus::PendingUserReturn,
             'basis_amount_cents' => 100_000,
             'reported_amount_cents' => $reportedCents,
@@ -161,8 +161,8 @@ class SettlementLiquidationHttpTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $expenseRequest->refresh();
-        $expenseRequest->load('expenseReport.settlement.attachments');
-        $attachment = $expenseRequest->expenseReport->settlement->attachments->firstOrFail();
+        $expenseRequest->load('settlement.attachments');
+        $attachment = $expenseRequest->settlement->attachments->firstOrFail();
 
         $this->actingAs($requester)
             ->get(route('expense-requests.receipts.settlement-liquidation', $expenseRequest))
@@ -208,8 +208,8 @@ class SettlementLiquidationHttpTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $expenseRequestA->refresh();
-        $expenseRequestA->load('expenseReport.settlement.attachments');
-        $attachmentA = $expenseRequestA->expenseReport->settlement->attachments->firstOrFail();
+        $expenseRequestA->load('settlement.attachments');
+        $attachmentA = $expenseRequestA->settlement->attachments->firstOrFail();
 
         $this->actingAs($requesterA)
             ->get(route('expense-requests.settlements.liquidation-evidence', [

@@ -10,6 +10,7 @@ use App\Models\DocumentEvent;
 use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Models\User;
+use App\Services\Approvals\ExpenseRequestApprovalService;
 use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
 use App\Services\ExpenseRequests\ExpenseRequestNotificationDispatcher;
 use Illuminate\Http\UploadedFile;
@@ -21,6 +22,7 @@ final class SubmitExpenseReportForReview
         private readonly ExpenseReportAttachmentWriter $attachments,
         private readonly ExpenseRequestNotificationDispatcher $notifications,
         private readonly CfdiComprobanteIngestor $cfdiIngestor,
+        private readonly ExpenseRequestApprovalService $approvalService,
     ) {}
 
     /**
@@ -33,6 +35,8 @@ final class SubmitExpenseReportForReview
         UploadedFile $pdf,
         ?UploadedFile $xml,
         ExpenseReportDocumentType $documentType,
+        ?ExpenseReport $report = null,
+        ?string $label = null,
     ): ExpenseReport {
         if ($expenseRequest->user_id !== $actor->id) {
             throw new InvalidExpenseReportException(__('No puedes enviar esta comprobación.'));
@@ -41,6 +45,7 @@ final class SubmitExpenseReportForReview
         if (! in_array($expenseRequest->status, [
             ExpenseRequestStatus::AwaitingExpenseReport,
             ExpenseRequestStatus::ExpenseReportRejected,
+            ExpenseRequestStatus::ExpenseReportInReview,
         ], true)) {
             throw new InvalidExpenseReportException(__('La solicitud no admite envío de comprobación en este momento.'));
         }
@@ -53,13 +58,17 @@ final class SubmitExpenseReportForReview
             throw new InvalidExpenseReportException(__('Debes adjuntar el XML del CFDI cuando la comprobación es una factura.'));
         }
 
-        $report = $expenseRequest->expenseReport;
+        if ($report !== null) {
+            if ((int) $report->expense_request_id !== (int) $expenseRequest->id) {
+                throw new InvalidExpenseReportException(__('La comprobación no pertenece a esta solicitud.'));
+            }
 
-        if ($report !== null && ! in_array($report->status, [
-            ExpenseReportStatus::Draft,
-            ExpenseReportStatus::Rejected,
-        ], true)) {
-            throw new InvalidExpenseReportException(__('La comprobación ya fue enviada o cerrada.'));
+            if (! in_array($report->status, [
+                ExpenseReportStatus::Draft,
+                ExpenseReportStatus::Rejected,
+            ], true)) {
+                throw new InvalidExpenseReportException(__('La comprobación ya fue enviada o cerrada.'));
+            }
         }
 
         $resolvedAmount = $reportedAmountCents;
@@ -78,21 +87,27 @@ final class SubmitExpenseReportForReview
             'cfdi_conceptos' => null,
         ];
 
+        $cfdiDto = null;
         if ($xml !== null) {
             $ingestion = $this->cfdiIngestor->ingest($xml, $reportedAmountCents, $report);
             $resolvedAmount = $ingestion->resolvedAmountCents;
             $cfdiAttributes = $this->cfdiIngestor->metadataAttributes($ingestion->cfdi);
+            $cfdiDto = $ingestion->cfdi;
         }
 
         if ($resolvedAmount <= 0) {
             throw new InvalidExpenseReportException(__('El monto comprobado es inválido.'));
         }
 
-        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $resolvedAmount, $pdf, $xml, $documentType, $report, $cfdiAttributes): ExpenseReport {
+        $submitted = DB::transaction(function () use ($expenseRequest, $actor, $resolvedAmount, $pdf, $xml, $documentType, $report, $cfdiAttributes, $cfdiDto, $label): ExpenseReport {
             $payload = array_merge([
                 'reported_amount_cents' => $resolvedAmount,
                 'document_type' => $documentType,
             ], $cfdiAttributes);
+
+            if ($label !== null) {
+                $payload['label'] = $label;
+            }
 
             if ($report === null) {
                 $report = ExpenseReport::query()->create(array_merge([
@@ -119,9 +134,34 @@ final class SubmitExpenseReportForReview
                 'submitted_at' => now(),
             ]);
 
-            $expenseRequest->update([
-                'status' => ExpenseRequestStatus::ExpenseReportInReview,
-            ]);
+            if ($cfdiDto !== null) {
+                $this->cfdiIngestor->persistImpuestos($report->fresh(), $cfdiDto);
+            } else {
+                $this->cfdiIngestor->persistImpuestos($report->fresh(), new CfdiComprobante(
+                    uuid: null,
+                    totalCents: 0,
+                    moneda: '',
+                    version: '',
+                    emisorRfc: null,
+                    emisorNombre: null,
+                    emisorRegimenFiscal: null,
+                    receptorRfc: null,
+                    receptorNombre: null,
+                    fecha: null,
+                    serie: null,
+                    folio: null,
+                    formaPago: null,
+                    metodoPago: null,
+                    usoCfdi: null,
+                    conceptos: [],
+                ));
+            }
+
+            if ($expenseRequest->status !== ExpenseRequestStatus::ExpenseReportInReview) {
+                $expenseRequest->update([
+                    'status' => ExpenseRequestStatus::ExpenseReportInReview,
+                ]);
+            }
 
             DocumentEvent::query()->create([
                 'subject_type' => $expenseRequest->getMorphClass(),
@@ -139,6 +179,14 @@ final class SubmitExpenseReportForReview
 
             return $report->fresh(['attachments']);
         });
+
+        // Over-cap check: if total reported across all receipts exceeds approved, request a new approval chain.
+        $expenseRequest->refresh();
+        $approved = (int) ($expenseRequest->approved_amount_cents ?? 0);
+        $totalReported = (int) $expenseRequest->expenseReports()->sum('reported_amount_cents');
+        if ($approved > 0 && $totalReported > $approved) {
+            $this->approvalService->requestOverCapExtension($expenseRequest);
+        }
 
         DB::afterCommit(function () use ($expenseRequest): void {
             $fresh = $expenseRequest->fresh(['user']);

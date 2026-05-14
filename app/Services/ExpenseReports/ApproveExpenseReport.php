@@ -2,11 +2,14 @@
 
 namespace App\Services\ExpenseReports;
 
+use App\Enums\ApprovalInstanceStatus;
 use App\Enums\DocumentEventType;
 use App\Enums\ExpenseReportStatus;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Enums\ExpenseRequestStatus;
 use App\Enums\SettlementStatus;
 use App\Models\DocumentEvent;
+use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Models\Settlement;
 use App\Models\User;
@@ -25,13 +28,12 @@ final class ApproveExpenseReport
      */
     public function approve(
         ExpenseRequest $expenseRequest,
+        ExpenseReport $report,
         User $actor,
         ?string $note,
-    ): Settlement {
-        $report = $expenseRequest->expenseReport;
-
-        if ($report === null) {
-            throw new InvalidExpenseReportException(__('No hay comprobación registrada.'));
+    ): ?Settlement {
+        if ((int) $report->expense_request_id !== (int) $expenseRequest->id) {
+            throw new InvalidExpenseReportException(__('La comprobación no pertenece a esta solicitud.'));
         }
 
         if ($report->status !== ExpenseReportStatus::AccountingReview) {
@@ -42,38 +44,56 @@ final class ApproveExpenseReport
             throw new InvalidExpenseReportException(__('La solicitud no está en revisión de comprobación.'));
         }
 
-        if ($report->settlement()->exists()) {
-            throw new InvalidExpenseReportException(__('Ya existe un balance para esta comprobación.'));
-        }
-
-        $payment = $expenseRequest->payments()->orderBy('id')->first();
-        if ($payment === null && ! $expenseRequest->is_reimbursement) {
-            throw new InvalidExpenseReportException(__('No hay pago asociado para calcular el balance.'));
-        }
-
-        $basisCents = $payment?->amount_cents ?? 0;
-        $reportedCents = $report->reported_amount_cents;
-        $differenceCents = $basisCents - $reportedCents;
-
-        $initialSettlementStatus = match (true) {
-            $differenceCents === 0 => SettlementStatus::Closed,
-            $differenceCents > 0 => SettlementStatus::PendingUserReturn,
-            default => SettlementStatus::PendingCompanyPayment,
-        };
-
-        $settlement = DB::transaction(function () use (
-            $expenseRequest,
-            $actor,
-            $note,
-            $report,
-            $basisCents,
-            $reportedCents,
-            $differenceCents,
-            $initialSettlementStatus,
-        ): Settlement {
+        $settlement = DB::transaction(function () use ($expenseRequest, $report, $actor, $note): ?Settlement {
             $report->update([
                 'status' => ExpenseReportStatus::Approved,
+                'reviewer_user_id' => $actor->id,
+                'reviewed_at' => now(),
             ]);
+
+            DocumentEvent::query()->create([
+                'subject_type' => $expenseRequest->getMorphClass(),
+                'subject_id' => $expenseRequest->getKey(),
+                'event_type' => DocumentEventType::ExpenseReportApproved,
+                'actor_user_id' => $actor->id,
+                'note' => $note !== null && $note !== '' ? $note : '-',
+                'metadata' => [
+                    'expense_report_id' => $report->id,
+                ],
+            ]);
+
+            $expenseRequest->refresh();
+            $expenseRequest->load(['expenseReports', 'approvals', 'payments']);
+
+            $allReportsApproved = $expenseRequest->expenseReports->isNotEmpty()
+                && $expenseRequest->expenseReports->every(
+                    fn (ExpenseReport $r) => $r->status === ExpenseReportStatus::Approved,
+                );
+
+            $hasPendingOverCap = $expenseRequest->approvals->contains(
+                fn ($a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === ExpenseRequestApprovalReason::OverCapExtension
+                    && $a->status === ApprovalInstanceStatus::Pending,
+            );
+
+            if (! $allReportsApproved || $hasPendingOverCap) {
+                return null;
+            }
+
+            // Existing settlement? (idempotency)
+            $existing = $expenseRequest->settlement;
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            $basisCents = (int) $expenseRequest->payments->sum('amount_cents');
+            $reportedCents = (int) $expenseRequest->expenseReports->sum('reported_amount_cents');
+            $differenceCents = $basisCents - $reportedCents;
+
+            $initialSettlementStatus = match (true) {
+                $differenceCents === 0 => SettlementStatus::Closed,
+                $differenceCents > 0 => SettlementStatus::PendingUserReturn,
+                default => SettlementStatus::PendingCompanyPayment,
+            };
 
             $nextRequestStatus = $differenceCents === 0
                 ? ExpenseRequestStatus::Closed
@@ -84,7 +104,7 @@ final class ApproveExpenseReport
             ]);
 
             $settlement = Settlement::query()->create([
-                'expense_report_id' => $report->id,
+                'expense_request_id' => $expenseRequest->id,
                 'status' => $initialSettlementStatus,
                 'basis_amount_cents' => $basisCents,
                 'reported_amount_cents' => $reportedCents,
@@ -96,9 +116,8 @@ final class ApproveExpenseReport
                 'subject_id' => $expenseRequest->getKey(),
                 'event_type' => DocumentEventType::ExpenseReportApproved,
                 'actor_user_id' => $actor->id,
-                'note' => $note !== null && $note !== '' ? $note : '-',
+                'note' => '-',
                 'metadata' => [
-                    'expense_report_id' => $report->id,
                     'settlement_id' => $settlement->id,
                     'difference_cents' => $differenceCents,
                 ],
@@ -108,6 +127,9 @@ final class ApproveExpenseReport
         });
 
         DB::afterCommit(function () use ($expenseRequest, $settlement): void {
+            if ($settlement === null) {
+                return;
+            }
             $fresh = $expenseRequest->fresh(['user']);
             if ($fresh !== null) {
                 $this->notifications->notifyRequesterOnExpenseReportApproved($fresh, $settlement);

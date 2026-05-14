@@ -29,6 +29,8 @@ final class SaveExpenseReportDraft
         ?UploadedFile $pdf,
         ?UploadedFile $xml,
         ?ExpenseReportDocumentType $documentType = null,
+        ?ExpenseReport $report = null,
+        ?string $label = null,
     ): ExpenseReport {
         if ($expenseRequest->user_id !== $actor->id) {
             throw new InvalidExpenseReportException(__('No puedes editar esta comprobación.'));
@@ -37,34 +39,45 @@ final class SaveExpenseReportDraft
         if (! in_array($expenseRequest->status, [
             ExpenseRequestStatus::AwaitingExpenseReport,
             ExpenseRequestStatus::ExpenseReportRejected,
+            ExpenseRequestStatus::ExpenseReportInReview,
         ], true)) {
             throw new InvalidExpenseReportException(__('La solicitud no admite comprobación en este momento.'));
         }
 
-        $report = $expenseRequest->expenseReport;
+        if ($report !== null) {
+            if ((int) $report->expense_request_id !== (int) $expenseRequest->id) {
+                throw new InvalidExpenseReportException(__('La comprobación no pertenece a esta solicitud.'));
+            }
 
-        if ($report !== null && ! in_array($report->status, [
-            ExpenseReportStatus::Draft,
-            ExpenseReportStatus::Rejected,
-        ], true)) {
-            throw new InvalidExpenseReportException(__('La comprobación no puede editarse en su estado actual.'));
+            if (! in_array($report->status, [
+                ExpenseReportStatus::Draft,
+                ExpenseReportStatus::Rejected,
+            ], true)) {
+                throw new InvalidExpenseReportException(__('La comprobación no puede editarse en su estado actual.'));
+            }
         }
 
         $resolvedType = $documentType ?? $report?->document_type ?? ExpenseReportDocumentType::Factura;
         $resolvedAmount = $reportedAmountCents;
         $cfdiAttributes = null;
+        $cfdiDto = null;
 
         if ($xml !== null) {
             $ingestion = $this->cfdiIngestor->ingest($xml, $reportedAmountCents, $report);
             $resolvedAmount = $ingestion->resolvedAmountCents;
             $cfdiAttributes = $this->cfdiIngestor->metadataAttributes($ingestion->cfdi);
+            $cfdiDto = $ingestion->cfdi;
         }
 
-        return DB::transaction(function () use ($expenseRequest, $actor, $resolvedAmount, $pdf, $xml, $resolvedType, $report, $cfdiAttributes): ExpenseReport {
+        return DB::transaction(function () use ($expenseRequest, $actor, $resolvedAmount, $pdf, $xml, $resolvedType, $report, $cfdiAttributes, $cfdiDto, $label): ExpenseReport {
             $payload = [
                 'reported_amount_cents' => $resolvedAmount,
                 'document_type' => $resolvedType,
             ];
+
+            if ($label !== null) {
+                $payload['label'] = $label;
+            }
 
             if ($cfdiAttributes !== null) {
                 $payload = array_merge($payload, $cfdiAttributes);
@@ -105,6 +118,29 @@ final class SaveExpenseReportDraft
 
             if ($xml !== null) {
                 $this->attachments->storeKind($report->fresh(), $actor, $xml, 'xml');
+            }
+
+            if ($cfdiDto !== null) {
+                $this->cfdiIngestor->persistImpuestos($report->fresh(), $cfdiDto);
+            } elseif ($resolvedType === ExpenseReportDocumentType::Recibo) {
+                $this->cfdiIngestor->persistImpuestos($report->fresh(), new CfdiComprobante(
+                    uuid: null,
+                    totalCents: 0,
+                    moneda: '',
+                    version: '',
+                    emisorRfc: null,
+                    emisorNombre: null,
+                    emisorRegimenFiscal: null,
+                    receptorRfc: null,
+                    receptorNombre: null,
+                    fecha: null,
+                    serie: null,
+                    folio: null,
+                    formaPago: null,
+                    metodoPago: null,
+                    usoCfdi: null,
+                    conceptos: [],
+                ));
             }
 
             return $report->fresh(['attachments']);

@@ -105,6 +105,88 @@ class CfdiIngestionHttpTest extends TestCase
         $this->assertSame('Servicio de prueba', $report->cfdi_conceptos[0]['descripcion']);
     }
 
+    public function test_submit_persists_impuestos_for_gasolina_ieps(): void
+    {
+        Storage::fake('local');
+        [$requester, , $expenseRequest] = $this->pendingReportSetup(37_065);
+
+        $pdf = UploadedFile::fake()->create('g.pdf', 100, 'application/pdf');
+        $xml = UploadedFile::fake()->createWithContent('g.xml', $this->cfdiXmlGasolinaIeps());
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
+                'reported_amount_cents' => 37_065,
+                'document_type' => 'factura',
+                'pdf' => $pdf,
+                'xml' => $xml,
+            ])
+            ->assertRedirect(route('expense-requests.show', $expenseRequest));
+
+        $report = $expenseRequest->fresh()->expenseReport;
+        $this->assertSame('601', $report->cfdi_emisor_regimen_fiscal);
+        $this->assertTrue((bool) $report->cfdi_has_hidrocarburos_complement);
+
+        $traslados = $report->cfdiTraslados()->orderBy('id')->get();
+        $this->assertGreaterThanOrEqual(2, $traslados->count());
+
+        $ieps = $traslados->firstWhere('impuesto', '003');
+        $this->assertNotNull($ieps);
+        $this->assertSame('IEPS', $ieps->impuesto_label);
+        $this->assertSame('Cuota', $ieps->tipo_factor);
+    }
+
+    public function test_submit_persists_impuestos_locales_for_hospedaje_ish(): void
+    {
+        Storage::fake('local');
+        [$requester, , $expenseRequest] = $this->pendingReportSetup(2_827_44);
+
+        $pdf = UploadedFile::fake()->create('h.pdf', 100, 'application/pdf');
+        $xml = UploadedFile::fake()->createWithContent('h.xml', $this->cfdiXmlHospedajeIsh());
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
+                'reported_amount_cents' => 2_827_44,
+                'document_type' => 'factura',
+                'pdf' => $pdf,
+                'xml' => $xml,
+            ])
+            ->assertRedirect(route('expense-requests.show', $expenseRequest));
+
+        $report = $expenseRequest->fresh()->expenseReport;
+        $ish = $report->cfdiImpuestosLocales()->first();
+        $this->assertNotNull($ish);
+        $this->assertSame('ISH', $ish->clave);
+        $this->assertSame('traslado', $ish->tipo);
+        $this->assertSame(7128, $ish->importe_cents);
+    }
+
+    public function test_submit_persists_retenciones_for_resico_isr(): void
+    {
+        Storage::fake('local');
+        [$requester, , $expenseRequest] = $this->pendingReportSetup(340_00);
+
+        $pdf = UploadedFile::fake()->create('r.pdf', 100, 'application/pdf');
+        $xml = UploadedFile::fake()->createWithContent('r.xml', $this->cfdiXmlResicoRetencionIsr());
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
+                'reported_amount_cents' => 340_00,
+                'document_type' => 'factura',
+                'pdf' => $pdf,
+                'xml' => $xml,
+            ])
+            ->assertRedirect(route('expense-requests.show', $expenseRequest));
+
+        $report = $expenseRequest->fresh()->expenseReport;
+        $this->assertSame('626', $report->cfdi_emisor_regimen_fiscal);
+
+        $documentRetencion = $report->cfdiRetenciones()->where('nivel', 'document')->first();
+        $this->assertNotNull($documentRetencion);
+        $this->assertSame('001', $documentRetencion->impuesto);
+        $this->assertSame('ISR', $documentRetencion->impuesto_label);
+        $this->assertSame(398, $documentRetencion->importe_cents);
+    }
+
     public function test_submit_rejects_duplicate_cfdi_uuid_across_users(): void
     {
         Storage::fake('local');

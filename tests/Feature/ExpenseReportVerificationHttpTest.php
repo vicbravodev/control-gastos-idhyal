@@ -60,7 +60,7 @@ class ExpenseReportVerificationHttpTest extends TestCase
 
         if ($reportStatus === ExpenseReportStatus::Approved) {
             Settlement::query()->create([
-                'expense_report_id' => $report->id,
+                'expense_request_id' => $expenseRequest->id,
                 'status' => SettlementStatus::PendingUserReturn,
                 'basis_amount_cents' => 50_000,
                 'reported_amount_cents' => 48_000,

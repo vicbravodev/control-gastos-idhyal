@@ -40,10 +40,12 @@ type RecentExpense = {
     requested_amount_cents: number;
 };
 
+type UserGender = 'male' | 'female' | 'prefer_not_to_say';
+
 type DashboardPageProps = {
     expenseStats?: ExpenseStats;
     recentExpenses?: RecentExpense[];
-    auth?: { user?: { name?: string } };
+    auth?: { user?: { name?: string; gender?: UserGender | null } };
 };
 
 const DEFAULT_STATS: ExpenseStats = {
@@ -52,11 +54,18 @@ const DEFAULT_STATS: ExpenseStats = {
     in_flight_amount_cents: 0,
 };
 
+function greetingFor(gender?: UserGender | null): string {
+    if (gender === 'female') return 'Bienvenida';
+    if (gender === 'male') return 'Bienvenido';
+    return 'Bienvenido(a)';
+}
+
 export default function Dashboard() {
     const { auth, expenseStats, recentExpenses } =
         usePage<DashboardPageProps>().props;
     const userName = auth?.user?.name ?? 'Usuario';
     const firstName = userName.split(' ')[0];
+    const greeting = greetingFor(auth?.user?.gender ?? null);
     const stats = expenseStats ?? DEFAULT_STATS;
     const recents = recentExpenses ?? [];
     const hasPending = stats.pending_approval > 0;
@@ -70,7 +79,7 @@ export default function Dashboard() {
                     emblem={
                         <AppLogoIcon className="h-full w-auto object-contain" />
                     }
-                    title={`Bienvenido, ${firstName}`}
+                    title={`${greeting}, ${firstName}`}
                     subtitle="Panel de control de gastos y solicitudes de IDHYAL."
                     actions={
                         <Button asChild>

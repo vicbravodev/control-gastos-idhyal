@@ -6,6 +6,7 @@ use App\Enums\DocumentEventType;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\DocumentEvent;
+use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Models\User;
 use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
@@ -23,13 +24,12 @@ final class RejectExpenseReport
      */
     public function reject(
         ExpenseRequest $expenseRequest,
+        ExpenseReport $report,
         User $actor,
         string $note,
     ): void {
-        $report = $expenseRequest->expenseReport;
-
-        if ($report === null) {
-            throw new InvalidExpenseReportException(__('No hay comprobación registrada.'));
+        if ((int) $report->expense_request_id !== (int) $expenseRequest->id) {
+            throw new InvalidExpenseReportException(__('La comprobación no pertenece a esta solicitud.'));
         }
 
         if ($report->status !== ExpenseReportStatus::AccountingReview) {
@@ -40,14 +40,26 @@ final class RejectExpenseReport
             throw new InvalidExpenseReportException(__('La solicitud no está en revisión de comprobación.'));
         }
 
-        DB::transaction(function () use ($expenseRequest, $actor, $note, $report): void {
+        DB::transaction(function () use ($expenseRequest, $report, $actor, $note): void {
             $report->update([
                 'status' => ExpenseReportStatus::Rejected,
+                'reviewer_user_id' => $actor->id,
+                'reviewed_at' => now(),
             ]);
 
-            $expenseRequest->update([
-                'status' => ExpenseRequestStatus::ExpenseReportRejected,
-            ]);
+            $expenseRequest->refresh();
+            $expenseRequest->load('expenseReports');
+
+            $allRejected = $expenseRequest->expenseReports->isNotEmpty()
+                && $expenseRequest->expenseReports->every(
+                    fn (ExpenseReport $r) => $r->status === ExpenseReportStatus::Rejected,
+                );
+
+            if ($allRejected) {
+                $expenseRequest->update([
+                    'status' => ExpenseRequestStatus::ExpenseReportRejected,
+                ]);
+            }
 
             DocumentEvent::query()->create([
                 'subject_type' => $expenseRequest->getMorphClass(),

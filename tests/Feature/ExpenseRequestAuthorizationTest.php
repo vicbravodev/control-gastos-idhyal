@@ -311,7 +311,7 @@ class ExpenseRequestAuthorizationTest extends TestCase
             'submitted_at' => now(),
         ]);
         Settlement::query()->create([
-            'expense_report_id' => $report->id,
+            'expense_request_id' => $expenseRequest->id,
             'status' => SettlementStatus::PendingUserReturn,
             'basis_amount_cents' => 100_000,
             'reported_amount_cents' => 80_000,
@@ -366,13 +366,14 @@ class ExpenseRequestAuthorizationTest extends TestCase
         $this->assertTrue($owner->can('downloadPaymentEvidence', [$expenseRequest, $attachment]));
         $this->assertTrue($accounting->can('downloadPaymentEvidence', [$expenseRequest, $attachment]));
 
+        ExpenseReport::factory()->create([
+            'expense_request_id' => $expenseRequest->id,
+            'status' => ExpenseReportStatus::Approved,
+            'reported_amount_cents' => 50_000,
+            'submitted_at' => now(),
+        ]);
         $settlement = Settlement::query()->create([
-            'expense_report_id' => ExpenseReport::factory()->create([
-                'expense_request_id' => $expenseRequest->id,
-                'status' => ExpenseReportStatus::Approved,
-                'reported_amount_cents' => 50_000,
-                'submitted_at' => now(),
-            ])->id,
+            'expense_request_id' => $expenseRequest->id,
             'status' => SettlementStatus::PendingUserReturn,
             'basis_amount_cents' => 50_000,
             'reported_amount_cents' => 50_000,

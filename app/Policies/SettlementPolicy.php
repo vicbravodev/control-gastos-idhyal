@@ -22,13 +22,13 @@ class SettlementPolicy
 
     public function view(User $user, Settlement $settlement): bool
     {
-        $settlement->loadMissing('expenseReport.expenseRequest');
+        $settlement->loadMissing('expenseRequest');
 
         if ($user->hasPermission('expense_request.record_settlement')) {
             return true;
         }
 
-        return $user->id === $settlement->expenseReport->expenseRequest->user_id;
+        return $user->id === $settlement->expenseRequest?->user_id;
     }
 
     public function create(User $user): bool

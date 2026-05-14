@@ -4,6 +4,8 @@ export type AuthRole = {
     name: string;
 };
 
+export type UserGender = 'male' | 'female' | 'prefer_not_to_say';
+
 export type User = {
     id: number;
     name: string;
@@ -11,6 +13,7 @@ export type User = {
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
+    gender?: UserGender | null;
     created_at: string;
     updated_at: string;
     role?: AuthRole | null;

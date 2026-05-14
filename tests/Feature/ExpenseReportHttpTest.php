@@ -107,9 +107,9 @@ class ExpenseReportHttpTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('expense-requests/expense-reports/pending-review')
-                ->has('expenseRequests.data', 1)
+                ->has('expenseReports.data', 1)
                 ->has('filters')
-                ->where('expenseRequests.data.0.id', $expenseRequest->id));
+                ->where('expenseReports.data.0.expense_request.id', $expenseRequest->id));
     }
 
     public function test_requester_can_save_draft_and_submit_notifies_accounting(): void

@@ -2,6 +2,7 @@
 
 namespace App\Concerns;
 
+use App\Enums\UserGender;
 use App\Models\User;
 use Illuminate\Validation\Rule;
 
@@ -17,6 +18,7 @@ trait ProfileValidationRules
         return [
             'name' => $this->nameRules(),
             'email' => $this->emailRules($userId),
+            'gender' => ['nullable', Rule::enum(UserGender::class)],
         ];
     }
 

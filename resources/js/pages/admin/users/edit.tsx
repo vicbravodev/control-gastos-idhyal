@@ -35,6 +35,7 @@ type UserPayload = {
     email: string;
     username: string | null;
     phone: string | null;
+    gender: string | null;
     role_id: number | null;
     region_id: number | null;
     state_id: number | null;
@@ -69,6 +70,7 @@ export default function AdminUsersEdit({
         email: user.email,
         username: user.username ?? '',
         phone: user.phone ?? '',
+        gender: user.gender ?? NONE,
         hire_date: user.hire_date ?? '',
         role_id: user.role_id != null ? String(user.role_id) : NONE,
         region_id: user.region_id != null ? String(user.region_id) : NONE,
@@ -117,6 +119,7 @@ export default function AdminUsersEdit({
             email: d.email,
             username: d.username === '' ? null : d.username,
             phone: d.phone === '' ? null : d.phone,
+            gender: d.gender === NONE ? null : d.gender,
             role_id: d.role_id === NONE ? null : Number(d.role_id),
             region_id: d.region_id === NONE ? null : Number(d.region_id),
             state_id: d.state_id === NONE ? null : Number(d.state_id),
@@ -206,6 +209,34 @@ export default function AdminUsersEdit({
                             </div>
                             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
+                                    <Label>Género</Label>
+                                    <Select
+                                        value={data.gender}
+                                        onValueChange={(v) =>
+                                            setData('gender', v)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Sin especificar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>
+                                                Sin especificar
+                                            </SelectItem>
+                                            <SelectItem value="male">
+                                                Masculino
+                                            </SelectItem>
+                                            <SelectItem value="female">
+                                                Femenino
+                                            </SelectItem>
+                                            <SelectItem value="prefer_not_to_say">
+                                                Prefiero no especificar
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.gender} />
+                                </div>
+                                <div className="grid gap-2">
                                     <Label htmlFor="hire_date">
                                         Fecha de ingreso
                                     </Label>
@@ -218,6 +249,8 @@ export default function AdminUsersEdit({
                                     />
                                     <InputError message={errors.hire_date} />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label>Rol</Label>
                                     <Select

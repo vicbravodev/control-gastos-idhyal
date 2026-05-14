@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\ExpenseRequests;
 
 use App\Enums\ExpenseReportDocumentType;
+use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequests\ApproveExpenseReportRequest;
@@ -27,31 +28,40 @@ class ExpenseReportController extends Controller
     {
         $this->authorize('viewAny', ExpenseReport::class);
 
-        $expenseRequests = ExpenseRequest::query()
-            ->where('status', ExpenseRequestStatus::ExpenseReportInReview)
-            ->with(['user', 'expenseConcept', 'expenseReport'])
-            ->when($request->query('search'), fn ($q, $search) => $q->where(fn ($sub) => $sub->where('folio', 'like', "%{$search}%")->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"))))
-            ->latest()
+        $reports = ExpenseReport::query()
+            ->where('status', ExpenseReportStatus::AccountingReview)
+            ->whereHas('expenseRequest', function ($q): void {
+                $q->where('status', ExpenseRequestStatus::ExpenseReportInReview);
+            })
+            ->with(['expenseRequest.user', 'expenseRequest.expenseConcept'])
+            ->when($request->query('search'), function ($q, $search): void {
+                $q->whereHas('expenseRequest', function ($sub) use ($search): void {
+                    $sub->where('folio', 'like', "%{$search}%")
+                        ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->orderByDesc('submitted_at')
             ->paginate(15)
-            ->through(fn (ExpenseRequest $r) => [
+            ->through(fn (ExpenseReport $r) => [
                 'id' => $r->id,
-                'folio' => $r->folio,
-                'concept_label' => $r->conceptLabel(),
-                'approved_amount_cents' => $r->approved_amount_cents,
-                'created_at' => $r->created_at?->toIso8601String(),
-                'user' => [
-                    'id' => $r->user->id,
-                    'name' => $r->user->name,
-                ],
-                'expense_report' => $r->expenseReport === null ? null : [
-                    'id' => $r->expenseReport->id,
-                    'reported_amount_cents' => $r->expenseReport->reported_amount_cents,
-                    'submitted_at' => $r->expenseReport->submitted_at?->toIso8601String(),
+                'reported_amount_cents' => $r->reported_amount_cents,
+                'submitted_at' => $r->submitted_at?->toIso8601String(),
+                'label' => $r->label,
+                'expense_request' => [
+                    'id' => $r->expenseRequest->id,
+                    'folio' => $r->expenseRequest->folio,
+                    'concept_label' => $r->expenseRequest->conceptLabel(),
+                    'approved_amount_cents' => $r->expenseRequest->approved_amount_cents,
+                    'created_at' => $r->expenseRequest->created_at?->toIso8601String(),
+                    'user' => [
+                        'id' => $r->expenseRequest->user->id,
+                        'name' => $r->expenseRequest->user->name,
+                    ],
                 ],
             ]);
 
         return Inertia::render('expense-requests/expense-reports/pending-review', [
-            'expenseRequests' => $expenseRequests,
+            'expenseReports' => $reports,
             'filters' => [
                 'search' => $request->query('search', ''),
             ],
@@ -62,7 +72,18 @@ class ExpenseReportController extends Controller
         StoreExpenseReportDraftRequest $request,
         ExpenseRequest $expenseRequest,
         SaveExpenseReportDraft $saveDraft,
+        ?ExpenseReport $expenseReport = null,
     ): RedirectResponse {
+        $report = $this->resolveReport($expenseRequest, $expenseReport);
+
+        // Backward-compat: if no report id passed, reuse the latest editable draft/rejected report.
+        if ($report === null) {
+            $report = $expenseRequest->expenseReports()
+                ->whereIn('status', [ExpenseReportStatus::Draft, ExpenseReportStatus::Rejected])
+                ->orderByDesc('id')
+                ->first();
+        }
+
         try {
             $saveDraft->save(
                 $expenseRequest,
@@ -73,6 +94,8 @@ class ExpenseReportController extends Controller
                 $request->filled('document_type')
                     ? ExpenseReportDocumentType::tryFrom($request->string('document_type')->toString())
                     : null,
+                $report,
+                $request->filled('label') ? $request->string('label')->toString() : null,
             );
         } catch (InvalidExpenseReportException $e) {
             return redirect()
@@ -90,7 +113,18 @@ class ExpenseReportController extends Controller
         SubmitExpenseReportRequest $request,
         ExpenseRequest $expenseRequest,
         SubmitExpenseReportForReview $submitReport,
+        ?ExpenseReport $expenseReport = null,
     ): RedirectResponse {
+        $report = $this->resolveReport($expenseRequest, $expenseReport);
+
+        // Backward-compat: if no report id passed, reuse the latest editable draft/rejected report.
+        if ($report === null) {
+            $report = $expenseRequest->expenseReports()
+                ->whereIn('status', [ExpenseReportStatus::Draft, ExpenseReportStatus::Rejected])
+                ->orderByDesc('id')
+                ->first();
+        }
+
         try {
             $submitReport->submit(
                 $expenseRequest,
@@ -99,6 +133,8 @@ class ExpenseReportController extends Controller
                 $request->file('pdf'),
                 $request->file('xml'),
                 $request->documentType(),
+                $report,
+                $request->filled('label') ? $request->string('label')->toString() : null,
             );
         } catch (InvalidExpenseReportException $e) {
             return redirect()
@@ -116,10 +152,19 @@ class ExpenseReportController extends Controller
         ApproveExpenseReportRequest $request,
         ExpenseRequest $expenseRequest,
         ApproveExpenseReport $approveReport,
+        ?ExpenseReport $expenseReport = null,
     ): RedirectResponse {
+        $report = $this->resolveReport($expenseRequest, $expenseReport)
+            ?? $expenseRequest->expenseReports()
+                ->where('status', ExpenseReportStatus::AccountingReview)
+                ->orderBy('id')
+                ->first();
+        abort_if($report === null, 404);
+
         try {
             $approveReport->approve(
                 $expenseRequest,
+                $report,
                 $request->user(),
                 $request->filled('note') ? $request->string('note')->toString() : null,
             );
@@ -132,17 +177,26 @@ class ExpenseReportController extends Controller
 
         return redirect()
             ->route('expense-requests.show', $expenseRequest)
-            ->with('status', __('Comprobación aprobada. Se generó el balance.'));
+            ->with('status', __('Comprobación aprobada.'));
     }
 
     public function reject(
         RejectExpenseReportRequest $request,
         ExpenseRequest $expenseRequest,
         RejectExpenseReport $rejectReport,
+        ?ExpenseReport $expenseReport = null,
     ): RedirectResponse {
+        $report = $this->resolveReport($expenseRequest, $expenseReport)
+            ?? $expenseRequest->expenseReports()
+                ->where('status', ExpenseReportStatus::AccountingReview)
+                ->orderBy('id')
+                ->first();
+        abort_if($report === null, 404);
+
         try {
             $rejectReport->reject(
                 $expenseRequest,
+                $report,
                 $request->user(),
                 $request->string('note')->toString(),
             );
@@ -156,5 +210,18 @@ class ExpenseReportController extends Controller
         return redirect()
             ->route('expense-requests.show', $expenseRequest)
             ->with('status', __('Comprobación rechazada. El solicitante fue notificado.'));
+    }
+
+    private function resolveReport(ExpenseRequest $expenseRequest, ?ExpenseReport $report): ?ExpenseReport
+    {
+        if ($report === null || ! $report->exists) {
+            return null;
+        }
+
+        if ((int) $report->expense_request_id !== (int) $expenseRequest->id) {
+            abort(404);
+        }
+
+        return $report;
     }
 }

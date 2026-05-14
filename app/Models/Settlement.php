@@ -13,7 +13,7 @@ class Settlement extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'expense_report_id',
+        'expense_request_id',
         'status',
         'basis_amount_cents',
         'reported_amount_cents',
@@ -31,11 +31,11 @@ class Settlement extends Model
     }
 
     /**
-     * @return BelongsTo<ExpenseReport, $this>
+     * @return BelongsTo<ExpenseRequest, $this>
      */
-    public function expenseReport(): BelongsTo
+    public function expenseRequest(): BelongsTo
     {
-        return $this->belongsTo(ExpenseReport::class);
+        return $this->belongsTo(ExpenseRequest::class);
     }
 
     /**

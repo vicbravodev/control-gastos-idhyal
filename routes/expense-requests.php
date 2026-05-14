@@ -11,16 +11,37 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('expense-requests/expense-reports/pending-review', [ExpenseReportController::class, 'pendingReview'])
         ->name('expense-requests.expense-reports.pending-review');
 
+    // Scoped per-receipt endpoints.
+    Route::patch('expense-requests/{expenseRequest}/expense-reports/{expenseReport}', [ExpenseReportController::class, 'storeDraft'])
+        ->name('expense-requests.expense-reports.update');
+
+    Route::post('expense-requests/{expenseRequest}/expense-reports/{expenseReport}/submit', [ExpenseReportController::class, 'submit'])
+        ->name('expense-requests.expense-reports.submit');
+
+    Route::post('expense-requests/{expenseRequest}/expense-reports/{expenseReport}/approve', [ExpenseReportController::class, 'approve'])
+        ->name('expense-requests.expense-reports.approve');
+
+    Route::post('expense-requests/{expenseRequest}/expense-reports/{expenseReport}/reject', [ExpenseReportController::class, 'reject'])
+        ->name('expense-requests.expense-reports.reject');
+
+    // "Add a new receipt" — POST without id creates a new receipt and saves draft/submits in one call.
+    Route::post('expense-requests/{expenseRequest}/expense-reports/draft', [ExpenseReportController::class, 'storeDraft'])
+        ->name('expense-requests.expense-reports.draft');
+
+    Route::post('expense-requests/{expenseRequest}/expense-reports', [ExpenseReportController::class, 'submit'])
+        ->name('expense-requests.expense-reports.store');
+
+    // Backward-compat aliases used by older clients/tests.
     Route::post('expense-requests/{expenseRequest}/expense-report/draft', [ExpenseReportController::class, 'storeDraft'])
         ->name('expense-requests.expense-report.draft');
 
     Route::post('expense-requests/{expenseRequest}/expense-report/submit', [ExpenseReportController::class, 'submit'])
         ->name('expense-requests.expense-report.submit');
 
-    Route::post('expense-requests/{expenseRequest}/expense-report/approve', [ExpenseReportController::class, 'approve'])
+    Route::post('expense-requests/{expenseRequest}/expense-report/approve/{expenseReport?}', [ExpenseReportController::class, 'approve'])
         ->name('expense-requests.expense-report.approve');
 
-    Route::post('expense-requests/{expenseRequest}/expense-report/reject', [ExpenseReportController::class, 'reject'])
+    Route::post('expense-requests/{expenseRequest}/expense-report/reject/{expenseReport?}', [ExpenseReportController::class, 'reject'])
         ->name('expense-requests.expense-report.reject');
 
     Route::post('expense-requests/{expenseRequest}/settlement/liquidation', [ExpenseRequestSettlementController::class, 'storeLiquidation'])

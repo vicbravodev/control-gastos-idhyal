@@ -5,13 +5,19 @@ import { DataRow } from './types';
 
 export default function ExpenseReportCfdiCard({
     cfdi,
+    label,
 }: {
     cfdi: CfdiSummary;
+    label?: string | null;
 }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Datos del CFDI</CardTitle>
+                <CardTitle>
+                    {label
+                        ? `Comprobante — ${label}`
+                        : 'Datos del CFDI'}
+                </CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="divide-y">
@@ -95,6 +101,115 @@ export default function ExpenseReportCfdiCard({
                                             )}
                                         </span>
                                     )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                {(cfdi.has_hidrocarburos_complement ||
+                    cfdi.emisor_regimen_fiscal === '626') && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        {cfdi.has_hidrocarburos_complement && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+                                Combustible (IEPS)
+                            </span>
+                        )}
+                        {cfdi.emisor_regimen_fiscal === '626' && (
+                            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-900">
+                                RESICO (626)
+                            </span>
+                        )}
+                    </div>
+                )}
+                {cfdi.traslados.length > 0 && (
+                    <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Impuestos trasladados
+                        </p>
+                        <ul className="divide-y rounded-md border">
+                            {cfdi.traslados
+                                .filter((t) => t.nivel === 'document')
+                                .map((t, i) => (
+                                    <li
+                                        key={`tras-${i}`}
+                                        className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm"
+                                    >
+                                        <span>
+                                            {t.impuesto_label}
+                                            <span className="ml-2 text-xs text-muted-foreground">
+                                                {t.tipo_factor}
+                                                {t.tasa_o_cuota != null && (
+                                                    <>
+                                                        {' · '}
+                                                        {t.tipo_factor === 'Cuota'
+                                                            ? t.tasa_o_cuota.toFixed(4)
+                                                            : `${(t.tasa_o_cuota * 100).toFixed(2)}%`}
+                                                    </>
+                                                )}
+                                            </span>
+                                        </span>
+                                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                                            {formatCentsMx(t.importe_cents)}
+                                        </span>
+                                    </li>
+                                ))}
+                        </ul>
+                    </div>
+                )}
+                {cfdi.retenciones.length > 0 && (
+                    <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Retenciones
+                        </p>
+                        <ul className="divide-y rounded-md border">
+                            {cfdi.retenciones
+                                .filter((r) => r.nivel === 'document')
+                                .map((r, i) => (
+                                    <li
+                                        key={`ret-${i}`}
+                                        className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm"
+                                    >
+                                        <span>
+                                            {r.impuesto_label}
+                                            {r.tasa_o_cuota != null && (
+                                                <span className="ml-2 text-xs text-muted-foreground">
+                                                    {(r.tasa_o_cuota * 100).toFixed(4)}%
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                                            −{formatCentsMx(r.importe_cents)}
+                                        </span>
+                                    </li>
+                                ))}
+                        </ul>
+                    </div>
+                )}
+                {cfdi.impuestos_locales.length > 0 && (
+                    <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            Impuestos locales
+                        </p>
+                        <ul className="divide-y rounded-md border">
+                            {cfdi.impuestos_locales.map((l, i) => (
+                                <li
+                                    key={`loc-${i}`}
+                                    className="flex items-baseline justify-between gap-3 px-3 py-2 text-sm"
+                                >
+                                    <span>
+                                        {l.clave}
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            {l.tipo === 'retencion'
+                                                ? 'Retenido'
+                                                : 'Trasladado'}
+                                            {l.tasa != null &&
+                                                ` · ${(l.tasa * 100).toFixed(2)}%`}
+                                        </span>
+                                    </span>
+                                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                                        {l.tipo === 'retencion' ? '−' : ''}
+                                        {formatCentsMx(l.importe_cents)}
+                                    </span>
                                 </li>
                             ))}
                         </ul>

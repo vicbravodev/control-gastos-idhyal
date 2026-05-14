@@ -246,6 +246,7 @@ export default function AdminUsersEdit({
                                         onChange={(v) =>
                                             setData('hire_date', v)
                                         }
+                                        disableFuture
                                     />
                                     <InputError message={errors.hire_date} />
                                 </div>

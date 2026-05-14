@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\UserGender;
 use App\Models\ApprovalPolicy;
 use App\Models\VacationRule;
 use Illuminate\Http\Request;
@@ -55,6 +56,7 @@ class HandleInertiaRequests extends Middleware
             $payload['can_manage_roles'] = $user->hasPermission('admin.roles.manage');
             $payload['can_view_reports'] = $user->hasPermission('report.expenses.view');
             $payload['unread_notifications_count'] = $user->unreadNotifications()->count();
+            $payload['greeting'] = ($user->gender ?? UserGender::PreferNotToSay)->greeting();
             $authUser = $payload;
         }
 

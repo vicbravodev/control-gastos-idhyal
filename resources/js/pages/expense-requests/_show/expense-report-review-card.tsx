@@ -14,27 +14,46 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { formatCentsMx } from '@/lib/money';
 
 export default function ExpenseReportReviewCard({
     expenseRequestId,
+    expenseReportId,
+    reportLabel,
+    reportedAmountCents,
 }: {
     expenseRequestId: number;
+    expenseReportId: number;
+    reportLabel?: string | null;
+    reportedAmountCents?: number;
 }) {
-    const approveForm = useForm<{ note: string; expense_report?: string }>({
-        note: '',
-    });
-    const rejectForm = useForm<{ note: string; expense_report?: string }>({
-        note: '',
-    });
+    const approveForm = useForm<{ note: string }>({ note: '' });
+    const rejectForm = useForm<{ note: string }>({ note: '' });
 
     const [confirmReject, setConfirmReject] = useState(false);
 
+    const subjectLabel = reportLabel
+        ? `"${reportLabel}"`
+        : `#${expenseReportId}`;
+
     return (
-        <Card className="border-primary/30">
+        <Card className="border-amber-300 bg-amber-50/40 dark:border-amber-700 dark:bg-amber-950/30">
             <CardHeader>
-                <CardTitle>Revisión de comprobación</CardTitle>
+                <CardTitle>Revisar comprobación {subjectLabel}</CardTitle>
                 <CardDescription>
-                    Aprueba o rechaza con nota obligatoria.
+                    {reportedAmountCents != null ? (
+                        <>
+                            Estás decidiendo sobre la comprobación{' '}
+                            <span className="font-semibold">{subjectLabel}</span>{' '}
+                            por un monto de{' '}
+                            <span className="font-semibold tabular-nums">
+                                {formatCentsMx(reportedAmountCents)}
+                            </span>
+                            . Aprueba o rechaza con nota obligatoria.
+                        </>
+                    ) : (
+                        <>Aprueba o rechaza esta comprobación con nota obligatoria.</>
+                    )}
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -44,20 +63,21 @@ export default function ExpenseReportReviewCard({
                         e.preventDefault();
                         approveForm.post(
                             ExpenseReportController.approve[
-                                '/expense-requests/{expenseRequest}/expense-report/approve/{expenseReport?}'
+                                '/expense-requests/{expenseRequest}/expense-reports/{expenseReport}/approve'
                             ].url({
                                 expenseRequest: expenseRequestId,
+                                expenseReport: expenseReportId,
                             }),
                             { preserveScroll: true },
                         );
                     }}
                 >
                     <div className="grid gap-2">
-                        <Label htmlFor="approve-report-note">
+                        <Label htmlFor={`approve-report-note-${expenseReportId}`}>
                             Nota (opcional)
                         </Label>
                         <Textarea
-                            id="approve-report-note"
+                            id={`approve-report-note-${expenseReportId}`}
                             rows={2}
                             value={approveForm.data.note}
                             onChange={(ev) =>
@@ -66,12 +86,11 @@ export default function ExpenseReportReviewCard({
                         />
                         <InputError message={approveForm.errors.note} />
                     </div>
-                    <InputError message={approveForm.errors.expense_report} />
                     <Button type="submit" disabled={approveForm.processing}>
                         <CheckCircle2 className="mr-1.5 size-3.5" />
                         {approveForm.processing
                             ? 'Procesando…'
-                            : 'Aprobar comprobación'}
+                            : `Aprobar comprobación ${subjectLabel}`}
                     </Button>
                 </form>
                 <form
@@ -82,11 +101,11 @@ export default function ExpenseReportReviewCard({
                     }}
                 >
                     <div className="grid gap-2">
-                        <Label htmlFor="reject-report-note">
+                        <Label htmlFor={`reject-report-note-${expenseReportId}`}>
                             Rechazar (nota obligatoria)
                         </Label>
                         <Textarea
-                            id="reject-report-note"
+                            id={`reject-report-note-${expenseReportId}`}
                             rows={3}
                             value={rejectForm.data.note}
                             onChange={(ev) =>
@@ -96,7 +115,6 @@ export default function ExpenseReportReviewCard({
                         />
                         <InputError message={rejectForm.errors.note} />
                     </div>
-                    <InputError message={rejectForm.errors.expense_report} />
                     <Button
                         type="submit"
                         variant="destructive"
@@ -105,14 +123,14 @@ export default function ExpenseReportReviewCard({
                         <XCircle className="mr-1.5 size-3.5" />
                         {rejectForm.processing
                             ? 'Procesando…'
-                            : 'Rechazar comprobación'}
+                            : `Rechazar comprobación ${subjectLabel}`}
                     </Button>
                 </form>
             </CardContent>
             <ConfirmationDialog
                 open={confirmReject}
                 onOpenChange={setConfirmReject}
-                title="¿Rechazar esta comprobación?"
+                title={`¿Rechazar la comprobación ${subjectLabel}?`}
                 description="Se notificará al solicitante y deberá volver a presentarla."
                 confirmLabel="Rechazar"
                 variant="destructive"
@@ -121,9 +139,10 @@ export default function ExpenseReportReviewCard({
                     setConfirmReject(false);
                     rejectForm.post(
                         ExpenseReportController.reject[
-                            '/expense-requests/{expenseRequest}/expense-report/reject/{expenseReport?}'
+                            '/expense-requests/{expenseRequest}/expense-reports/{expenseReport}/reject'
                         ].url({
                             expenseRequest: expenseRequestId,
+                            expenseReport: expenseReportId,
                         }),
                         { preserveScroll: true },
                     );

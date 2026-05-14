@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { DayPicker } from 'react-day-picker';
 import { es } from 'react-day-picker/locale';
@@ -11,26 +11,37 @@ function Calendar({
     className,
     classNames,
     showOutsideDays = true,
+    captionLayout = 'dropdown',
     ...props
 }: CalendarProps) {
     return (
         <DayPicker
             locale={es}
             showOutsideDays={showOutsideDays}
+            captionLayout={captionLayout}
             className={cn('p-3', className)}
             classNames={{
                 months: 'flex flex-col sm:flex-row space-y-4 sm:space-y-0 relative',
                 month: 'space-y-4',
-                month_caption: 'flex justify-center pt-1 relative items-center',
-                caption_label: 'text-sm font-medium capitalize',
-                nav: 'flex items-center justify-between absolute inset-x-0',
+                month_caption:
+                    'flex justify-center pt-1 px-9 relative items-center min-h-9',
+                caption_label:
+                    'inline-flex items-center gap-1 text-sm font-medium capitalize',
+                dropdowns: 'flex items-center gap-1.5',
+                dropdown_root:
+                    'relative inline-flex items-center rounded-md border border-input bg-background px-2.5 py-1 text-sm font-medium capitalize transition-colors hover:bg-accent hover:text-accent-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
+                dropdown:
+                    'absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none bg-transparent text-transparent opacity-0',
+                months_dropdown: '',
+                years_dropdown: '',
+                nav: 'flex items-center justify-between absolute inset-x-0 px-1',
                 button_previous: cn(
                     buttonVariants({ variant: 'outline' }),
-                    'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 z-10',
+                    'h-7 w-7 bg-transparent p-0 opacity-60 hover:opacity-100 z-10',
                 ),
                 button_next: cn(
                     buttonVariants({ variant: 'outline' }),
-                    'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 z-10',
+                    'h-7 w-7 bg-transparent p-0 opacity-60 hover:opacity-100 z-10',
                 ),
                 month_grid: 'w-full border-collapse space-y-1',
                 weekdays: 'flex',
@@ -57,18 +68,20 @@ function Calendar({
                 ...classNames,
             }}
             components={{
-                Chevron: ({ ...chevronProps }) =>
-                    chevronProps.orientation === 'left' ? (
-                        <ChevronLeft
+                Chevron: ({ orientation, className: chevronClassName, ...chevronProps }) => {
+                    const Icon =
+                        orientation === 'left'
+                            ? ChevronLeft
+                            : orientation === 'right'
+                              ? ChevronRight
+                              : ChevronDown;
+                    return (
+                        <Icon
                             {...chevronProps}
-                            className="h-4 w-4"
+                            className={cn('h-4 w-4', chevronClassName)}
                         />
-                    ) : (
-                        <ChevronRight
-                            {...chevronProps}
-                            className="h-4 w-4"
-                        />
-                    ),
+                    );
+                },
             }}
             {...props}
         />

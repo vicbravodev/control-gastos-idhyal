@@ -474,6 +474,7 @@ export default function ReportsIndex({
                                                 v || undefined,
                                             )
                                         }
+                                        disableFuture
                                     />
                                 </div>
 
@@ -487,6 +488,7 @@ export default function ReportsIndex({
                                                 v || undefined,
                                             )
                                         }
+                                        disableFuture
                                     />
                                 </div>
                             </div>

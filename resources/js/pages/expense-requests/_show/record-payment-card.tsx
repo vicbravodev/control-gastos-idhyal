@@ -107,6 +107,7 @@ export default function RecordPaymentCard({
                             id="paid_on"
                             value={form.data.paid_on}
                             onChange={(v) => form.setData('paid_on', v)}
+                            disableFuture
                         />
                         <InputError message={form.errors.paid_on} />
                     </div>

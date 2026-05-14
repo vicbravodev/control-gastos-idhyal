@@ -41,8 +41,7 @@ import type { ApprovalRow, BreadcrumbItem } from '@/types';
 import ActionRequiredCard from './_show/action-required-card';
 import DocumentTimelineCard from './_show/document-timeline-card';
 import DocumentsSection from './_show/documents-section';
-import ExpenseReportCfdiCard from './_show/expense-report-cfdi-card';
-import ExpenseReportSummaryCard from './_show/expense-report-summary-card';
+import ExpenseReportsSection from './_show/expense-reports-section';
 import PaymentSummaryCard from './_show/payment-summary-card';
 import type { BalanceSummary, Detail } from './_show/types';
 
@@ -219,7 +218,6 @@ export default function ExpenseRequestsShow({
         canRecordPayment ||
         canSaveExpenseReportDraft ||
         canSubmitExpenseReport ||
-        canReviewExpenseReport ||
         canRecordSettlementLiquidation ||
         canCloseSettlement;
 
@@ -372,7 +370,6 @@ export default function ExpenseRequestsShow({
                                     canSaveExpenseReportDraft
                                 }
                                 canSubmitExpenseReport={canSubmitExpenseReport}
-                                canReviewExpenseReport={canReviewExpenseReport}
                                 canRecordSettlementLiquidation={
                                     canRecordSettlementLiquidation
                                 }
@@ -483,27 +480,6 @@ export default function ExpenseRequestsShow({
 
                         <BalanceCard balance={expenseRequest.balance} />
 
-                        {expenseRequest.expense_reports.map((report) => (
-                            <div key={report.id} className="space-y-3">
-                                <ExpenseReportSummaryCard
-                                    expenseRequestId={expenseRequest.id}
-                                    report={report}
-                                    canDownloadPdf={
-                                        canDownloadExpenseReportVerificationPdf
-                                    }
-                                    canDownloadXml={
-                                        canDownloadExpenseReportVerificationXml
-                                    }
-                                />
-                                {report.cfdi ? (
-                                    <ExpenseReportCfdiCard
-                                        cfdi={report.cfdi}
-                                        label={report.label}
-                                    />
-                                ) : null}
-                            </div>
-                        ))}
-
                         {expenseRequest.payment ? (
                             <PaymentSummaryCard
                                 expenseRequestId={expenseRequest.id}
@@ -513,6 +489,20 @@ export default function ExpenseRequestsShow({
                         ) : null}
                     </div>
                 </div>
+
+                {expenseRequest.expense_reports.length > 0 && (
+                    <ExpenseReportsSection
+                        reports={expenseRequest.expense_reports}
+                        expenseRequestId={expenseRequest.id}
+                        canDownloadPdf={
+                            canDownloadExpenseReportVerificationPdf
+                        }
+                        canDownloadXml={
+                            canDownloadExpenseReportVerificationXml
+                        }
+                        canReview={canReviewExpenseReport}
+                    />
+                )}
 
                 {/* ── Footer nav ─────────────────────────── */}
                 <div className="flex justify-center pt-2">

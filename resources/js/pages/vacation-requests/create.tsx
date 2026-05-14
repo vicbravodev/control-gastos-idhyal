@@ -81,6 +81,7 @@ export default function VacationRequestsCreate({
                                             id="starts_on"
                                             value={startsOn}
                                             onChange={setStartsOn}
+                                            disablePast
                                         />
                                         <InputError
                                             message={errors.starts_on}
@@ -99,6 +100,7 @@ export default function VacationRequestsCreate({
                                             id="ends_on"
                                             value={endsOn}
                                             onChange={setEndsOn}
+                                            disablePast
                                         />
                                         <InputError message={errors.ends_on} />
                                     </div>

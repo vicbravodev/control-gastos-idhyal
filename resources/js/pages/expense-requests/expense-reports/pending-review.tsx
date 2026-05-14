@@ -14,20 +14,21 @@ import { formatCentsMx } from '@/lib/money';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
-type ExpenseReportRow = {
-    id: number;
-    reported_amount_cents: number;
-    submitted_at: string | null;
-};
-
-type Row = {
+type ExpenseRequestRow = {
     id: number;
     folio: string | null;
     concept_label: string;
     approved_amount_cents: number | null;
     created_at: string | null;
     user: { id: number; name: string };
-    expense_report: ExpenseReportRow | null;
+};
+
+type Row = {
+    id: number;
+    reported_amount_cents: number;
+    submitted_at: string | null;
+    label: string | null;
+    expense_request: ExpenseRequestRow;
 };
 
 type Paginator = ListFooterPaginator & {
@@ -61,13 +62,13 @@ function formatSubmitted(iso: string | null): string {
 }
 
 export default function ExpenseReportsPendingReview({
-    expenseRequests,
+    expenseReports,
     filters,
 }: {
-    expenseRequests: Paginator;
+    expenseReports: Paginator;
     filters: Record<string, string>;
 }) {
-    const isEmpty = expenseRequests.data.length === 0;
+    const isEmpty = expenseReports.data.length === 0;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -116,76 +117,81 @@ export default function ExpenseReportsPendingReview({
                             </tr>
                         </thead>
                         <tbody>
-                            {expenseRequests.data.map((row) => (
-                                <tr key={row.id}>
-                                    <td>
-                                        <Link
-                                            href={ExpenseRequestController.show.url(
-                                                row.id,
-                                            )}
-                                            className="folio hover:underline"
-                                        >
-                                            {row.folio ?? `#${row.id}`}
-                                        </Link>
-                                    </td>
-                                    <td>
-                                        <span className="font-medium text-foreground">
-                                            {row.user.name}
-                                        </span>
-                                    </td>
-                                    <td className="max-w-[300px]">
-                                        <span className="line-clamp-1 text-sm text-muted-foreground">
-                                            {row.concept_label}
-                                        </span>
-                                    </td>
-                                    <td className="text-muted-foreground">
-                                        <span className="t-num">
-                                            {formatSubmitted(
-                                                row.expense_report
-                                                    ?.submitted_at ??
-                                                    row.created_at,
-                                            )}
-                                        </span>
-                                    </td>
-                                    <td className="is-num">
-                                        <span className="t-money">
-                                            {row.expense_report
-                                                ? formatCentsMx(
-                                                      row.expense_report
-                                                          .reported_amount_cents,
-                                                  )
-                                                : '—'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <StatusBadge status="expense_report_in_review" />
-                                    </td>
-                                    <td className="is-num">
-                                        <Button
-                                            size="sm"
-                                            variant="brand-soft"
-                                            asChild
-                                        >
+                            {expenseReports.data.map((row) => {
+                                const request = row.expense_request;
+
+                                return (
+                                    <tr key={row.id}>
+                                        <td>
                                             <Link
-                                                href={ExpenseRequestController.show.url(
-                                                    row.id,
-                                                )}
+                                                href={`${ExpenseRequestController.show.url(
+                                                    request.id,
+                                                )}#report-${row.id}`}
+                                                className="folio hover:underline"
                                             >
-                                                Revisar
-                                                <ArrowRight />
+                                                {request.folio ?? `#${request.id}`}
                                             </Link>
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))}
+                                            {row.label ? (
+                                                <span className="ml-2 text-xs text-muted-foreground">
+                                                    {row.label}
+                                                </span>
+                                            ) : null}
+                                        </td>
+                                        <td>
+                                            <span className="font-medium text-foreground">
+                                                {request.user.name}
+                                            </span>
+                                        </td>
+                                        <td className="max-w-[300px]">
+                                            <span className="line-clamp-1 text-sm text-muted-foreground">
+                                                {request.concept_label}
+                                            </span>
+                                        </td>
+                                        <td className="text-muted-foreground">
+                                            <span className="t-num">
+                                                {formatSubmitted(
+                                                    row.submitted_at ??
+                                                        request.created_at,
+                                                )}
+                                            </span>
+                                        </td>
+                                        <td className="is-num">
+                                            <span className="t-money">
+                                                {formatCentsMx(
+                                                    row.reported_amount_cents,
+                                                )}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <StatusBadge status="expense_report_in_review" />
+                                        </td>
+                                        <td className="is-num">
+                                            <Button
+                                                size="sm"
+                                                variant="brand-soft"
+                                                asChild
+                                            >
+                                                <Link
+                                                    href={`${ExpenseRequestController.show.url(
+                                                        request.id,
+                                                    )}#report-${row.id}`}
+                                                >
+                                                    Revisar
+                                                    <ArrowRight />
+                                                </Link>
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </ListTable>
                 )}
 
                 <ListFooter
-                    paginator={expenseRequests}
+                    paginator={expenseReports}
                     label={
-                        expenseRequests.total === 1
+                        expenseReports.total === 1
                             ? 'comprobación'
                             : 'comprobaciones'
                     }

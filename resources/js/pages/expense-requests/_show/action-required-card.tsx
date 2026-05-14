@@ -1,7 +1,6 @@
 import ExpenseRequestApprovalController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestApprovalController';
 import ActiveApprovalCard from '@/components/active-approval-card';
 import type { ApprovalRow } from '@/types';
-import ExpenseReportReviewCard from './expense-report-review-card';
 import ExpenseReportSubmitCard from './expense-report-submit-card';
 import RecordPaymentCard from './record-payment-card';
 import SettlementCard from './settlement-card';
@@ -12,7 +11,6 @@ type Props = {
     canRecordPayment: boolean;
     canSaveExpenseReportDraft: boolean;
     canSubmitExpenseReport: boolean;
-    canReviewExpenseReport: boolean;
     canRecordSettlementLiquidation: boolean;
     canCloseSettlement: boolean;
     canDownloadSettlementLiquidationReceipt: boolean;
@@ -24,7 +22,6 @@ export default function ActionRequiredCard({
     canRecordPayment,
     canSaveExpenseReportDraft,
     canSubmitExpenseReport,
-    canReviewExpenseReport,
     canRecordSettlementLiquidation,
     canCloseSettlement,
     canDownloadSettlementLiquidationReceipt,
@@ -81,14 +78,6 @@ export default function ActionRequiredCard({
                     canSaveDraft={canSaveExpenseReportDraft}
                     canSubmit={canSubmitExpenseReport}
                 />
-            </Section>
-        );
-    }
-
-    if (canReviewExpenseReport) {
-        return (
-            <Section label="Acción requerida: revisar comprobación">
-                <ExpenseReportReviewCard expenseRequestId={expenseRequest.id} />
             </Section>
         );
     }

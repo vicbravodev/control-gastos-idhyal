@@ -4,6 +4,7 @@ import {
     CalendarDays,
     ChevronRight,
     ClipboardList,
+    FileCheck2,
     Plus,
     Zap,
 } from 'lucide-react';
@@ -40,12 +41,10 @@ type RecentExpense = {
     requested_amount_cents: number;
 };
 
-type UserGender = 'male' | 'female' | 'prefer_not_to_say';
-
 type DashboardPageProps = {
     expenseStats?: ExpenseStats;
     recentExpenses?: RecentExpense[];
-    auth?: { user?: { name?: string; gender?: UserGender | null } };
+    auth?: { user?: { name?: string; greeting?: string } };
 };
 
 const DEFAULT_STATS: ExpenseStats = {
@@ -54,18 +53,12 @@ const DEFAULT_STATS: ExpenseStats = {
     in_flight_amount_cents: 0,
 };
 
-function greetingFor(gender?: UserGender | null): string {
-    if (gender === 'female') return 'Bienvenida';
-    if (gender === 'male') return 'Bienvenido';
-    return 'Bienvenido(a)';
-}
-
 export default function Dashboard() {
     const { auth, expenseStats, recentExpenses } =
         usePage<DashboardPageProps>().props;
     const userName = auth?.user?.name ?? 'Usuario';
     const firstName = userName.split(' ')[0];
-    const greeting = greetingFor(auth?.user?.gender ?? null);
+    const greeting = auth?.user?.greeting ?? 'Bienvenido(a)';
     const stats = expenseStats ?? DEFAULT_STATS;
     const recents = recentExpenses ?? [];
     const hasPending = stats.pending_approval > 0;
@@ -96,7 +89,7 @@ export default function Dashboard() {
                         tone="blue"
                         icon={<ClipboardList className="size-5" aria-hidden />}
                         title="Solicitudes de gasto"
-                        description="Crea y da seguimiento a tus solicitudes de gasto."
+                        description="Crea, comprueba y da seguimiento a tus solicitudes de gasto."
                         actions={
                             <>
                                 <Button asChild size="sm">
@@ -105,6 +98,14 @@ export default function Dashboard() {
                                     >
                                         <Plus />
                                         Nueva solicitud
+                                    </Link>
+                                </Button>
+                                <Button asChild size="sm" variant="outline">
+                                    <Link
+                                        href={ExpenseRequestController.createReimbursement.url()}
+                                    >
+                                        <FileCheck2 />
+                                        Comprobar directo
                                     </Link>
                                 </Button>
                                 <Button asChild size="sm" variant="outline">

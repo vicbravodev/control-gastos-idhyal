@@ -187,6 +187,63 @@ class AdminTerritoryAndStaffHttpTest extends TestCase
         $this->assertModelExists($region);
     }
 
+    public function test_super_admin_can_create_user_with_gender(): void
+    {
+        $admin = User::factory()->forRole('super_admin')->create();
+        $asesorRole = Role::query()->where('slug', 'asesor')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.store'), [
+                'name' => 'Mujer Asesora',
+                'email' => 'mujer-asesora@example.com',
+                'username' => 'mujer_asesora',
+                'phone' => null,
+                'gender' => 'female',
+                'password' => 'password',
+                'password_confirmation' => 'password',
+                'hire_date' => '2024-04-10',
+                'role_id' => $asesorRole->id,
+            ])
+            ->assertRedirect(route('admin.users.index'));
+
+        $created = User::query()->where('email', 'mujer-asesora@example.com')->firstOrFail();
+        $this->assertSame('female', $created->gender->value);
+    }
+
+    public function test_staff_store_rejects_invalid_gender_value(): void
+    {
+        $admin = User::factory()->forRole('super_admin')->create();
+
+        $this->actingAs($admin)
+            ->from(route('admin.users.create'))
+            ->post(route('admin.users.store'), [
+                'name' => 'Invalid Gender',
+                'email' => 'bad-gender@example.com',
+                'gender' => 'not_a_real_value',
+                'password' => 'password',
+                'password_confirmation' => 'password',
+                'hire_date' => '2024-01-01',
+            ])
+            ->assertSessionHasErrors('gender');
+    }
+
+    public function test_super_admin_can_update_user_gender(): void
+    {
+        $admin = User::factory()->forRole('super_admin')->create();
+        $target = User::factory()->create(['gender' => null]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.update', $target), [
+                'name' => $target->name,
+                'email' => $target->email,
+                'gender' => 'male',
+                'hire_date' => '2024-01-01',
+            ])
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertSame('male', $target->refresh()->gender->value);
+    }
+
     public function test_manage_staff_directory_gate_is_false_for_non_super_admin(): void
     {
         $user = User::factory()->forRole('contabilidad')->create();

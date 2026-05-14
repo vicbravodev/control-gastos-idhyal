@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
+use App\Enums\ExpenseRequestApprovalReason;
 use Database\Factories\ExpenseRequestApprovalFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,7 @@ class ExpenseRequestApproval extends Model
         'step_order',
         'approver_type',
         'approver_id',
+        'reason',
         'status',
         'approver_user_id',
         'note',
@@ -37,6 +39,7 @@ class ExpenseRequestApproval extends Model
         return [
             'approver_type' => ApprovalApproverType::class,
             'status' => ApprovalInstanceStatus::class,
+            'reason' => ExpenseRequestApprovalReason::class,
             'acted_at' => 'datetime',
         ];
     }

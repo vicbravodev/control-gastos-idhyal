@@ -30,10 +30,12 @@ export default function ActionRequiredCard({
     canDownloadSettlementLiquidationReceipt,
     activeApproval,
 }: Props) {
+    const remainingCents = expenseRequest.balance?.remaining_cents ?? null;
     const defaultReportedCents =
-        expenseRequest.expense_report?.reported_amount_cents ??
-        expenseRequest.approved_amount_cents ??
-        expenseRequest.requested_amount_cents;
+        remainingCents != null && remainingCents > 0
+            ? remainingCents
+            : (expenseRequest.approved_amount_cents ??
+              expenseRequest.requested_amount_cents);
 
     if (activeApproval) {
         return (

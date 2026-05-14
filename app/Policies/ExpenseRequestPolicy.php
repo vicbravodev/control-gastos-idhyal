@@ -5,6 +5,7 @@ namespace App\Policies;
 use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ExpenseReportStatus;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Enums\ExpenseRequestStatus;
 use App\Enums\SettlementStatus;
 use App\Models\Attachment;
@@ -176,8 +177,8 @@ class ExpenseRequestPolicy
 
     public function downloadSettlementLiquidationReceipt(User $user, ExpenseRequest $expenseRequest): bool
     {
-        $expenseRequest->loadMissing('expenseReport.settlement');
-        $settlement = $expenseRequest->expenseReport?->settlement;
+        $expenseRequest->loadMissing('settlement');
+        $settlement = $expenseRequest->settlement;
         if ($settlement === null || ! $settlement->attachments()->exists()) {
             return false;
         }
@@ -195,8 +196,8 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        $expenseRequest->loadMissing('expenseReport.settlement');
-        $linkedSettlement = $expenseRequest->expenseReport?->settlement;
+        $expenseRequest->loadMissing('settlement');
+        $linkedSettlement = $expenseRequest->settlement;
 
         return $linkedSettlement !== null
             && (int) $attachment->attachable_id === (int) $linkedSettlement->getKey();
@@ -241,10 +242,10 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        $expenseRequest->loadMissing('expenseReport');
-        $report = $expenseRequest->expenseReport;
+        $expenseRequest->loadMissing('expenseReports');
+        $report = $expenseRequest->expenseReports->firstWhere('id', (int) $attachment->attachable_id);
 
-        if ($report === null || (int) $attachment->attachable_id !== (int) $report->getKey()) {
+        if ($report === null) {
             return false;
         }
 
@@ -260,17 +261,15 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        $expenseRequest->loadMissing('expenseReport');
-        $report = $expenseRequest->expenseReport;
+        $expenseRequest->loadMissing('expenseReports');
+        $hasReviewable = $expenseRequest->expenseReports->contains(
+            fn (ExpenseReport $r) => in_array($r->status, [
+                ExpenseReportStatus::AccountingReview,
+                ExpenseReportStatus::Approved,
+            ], true),
+        );
 
-        if ($report === null) {
-            return false;
-        }
-
-        return in_array($report->status, [
-            ExpenseReportStatus::AccountingReview,
-            ExpenseReportStatus::Approved,
-        ], true);
+        return $hasReviewable;
     }
 
     private function allowsExpenseReportVerificationFileAccess(User $user, ExpenseRequest $expenseRequest, ExpenseReport $report): bool
@@ -315,23 +314,10 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        if (! in_array($expenseRequest->status, [
+        return in_array($expenseRequest->status, [
             ExpenseRequestStatus::AwaitingExpenseReport,
             ExpenseRequestStatus::ExpenseReportRejected,
-        ], true)) {
-            return false;
-        }
-
-        $expenseRequest->loadMissing('expenseReport');
-        $report = $expenseRequest->expenseReport;
-
-        if ($report === null) {
-            return true;
-        }
-
-        return in_array($report->status, [
-            ExpenseReportStatus::Draft,
-            ExpenseReportStatus::Rejected,
+            ExpenseRequestStatus::ExpenseReportInReview,
         ], true);
     }
 
@@ -350,12 +336,12 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        $expenseRequest->loadMissing('expenseReport');
-        $report = $expenseRequest->expenseReport;
+        $expenseRequest->loadMissing('expenseReports');
+        $hasReviewable = $expenseRequest->expenseReports->contains(
+            fn (ExpenseReport $r) => $r->status === ExpenseReportStatus::AccountingReview,
+        );
 
-        return $report !== null
-            && $report->status === ExpenseReportStatus::AccountingReview
-            && $expenseRequest->status === ExpenseRequestStatus::ExpenseReportInReview;
+        return $hasReviewable && $expenseRequest->status === ExpenseRequestStatus::ExpenseReportInReview;
     }
 
     public function recordSettlementLiquidation(User $user, ExpenseRequest $expenseRequest): bool
@@ -372,13 +358,10 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        $expenseRequest->loadMissing('expenseReport.settlement');
-        $report = $expenseRequest->expenseReport;
-        $settlement = $report?->settlement;
+        $expenseRequest->loadMissing('settlement');
+        $settlement = $expenseRequest->settlement;
 
-        return $report !== null
-            && $report->status === ExpenseReportStatus::Approved
-            && $settlement !== null
+        return $settlement !== null
             && in_array($settlement->status, [
                 SettlementStatus::PendingUserReturn,
                 SettlementStatus::PendingCompanyPayment,
@@ -399,13 +382,10 @@ class ExpenseRequestPolicy
             return false;
         }
 
-        $expenseRequest->loadMissing('expenseReport.settlement');
-        $report = $expenseRequest->expenseReport;
-        $settlement = $report?->settlement;
+        $expenseRequest->loadMissing('settlement');
+        $settlement = $expenseRequest->settlement;
 
-        return $report !== null
-            && $report->status === ExpenseReportStatus::Approved
-            && $settlement !== null
+        return $settlement !== null
             && $settlement->status === SettlementStatus::Settled;
     }
 
@@ -437,8 +417,10 @@ class ExpenseRequestPolicy
     private function allowsActingOnPendingApproval(User $user, ExpenseRequestApproval $approval): bool
     {
         $expenseRequest = $approval->expenseRequest;
+        $reason = $approval->reason ?? ExpenseRequestApprovalReason::Initial;
 
-        if ($expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
+        if ($reason === ExpenseRequestApprovalReason::Initial
+            && $expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
             return false;
         }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin\Users;
 
 use App\Concerns\PasswordValidationRules;
+use App\Enums\UserGender;
 use App\Models\State;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -37,6 +38,7 @@ class StoreStaffUserRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class, 'email')],
             'username' => ['nullable', 'string', 'max:64', Rule::unique(User::class, 'username')],
             'phone' => ['nullable', 'string', 'max:32'],
+            'gender' => ['nullable', Rule::enum(UserGender::class)],
             'password' => $this->passwordRules(),
             'role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'region_id' => ['nullable', 'integer', Rule::exists('regions', 'id')],

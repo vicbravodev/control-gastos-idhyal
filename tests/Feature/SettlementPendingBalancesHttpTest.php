@@ -39,7 +39,7 @@ class SettlementPendingBalancesHttpTest extends TestCase
             'submitted_at' => now(),
         ]);
         Settlement::query()->create([
-            'expense_report_id' => $report->id,
+            'expense_request_id' => $expenseRequest->id,
             'status' => $settlementStatus,
             'basis_amount_cents' => 100_000,
             'reported_amount_cents' => 80_000,

@@ -5,12 +5,16 @@ namespace Tests\Feature;
 use App\Enums\ApprovalPolicyDocumentType;
 use App\Enums\ApprovalStepMode;
 use App\Enums\BudgetLedgerEntryType;
+use App\Enums\ExpenseReportDocumentType;
+use App\Enums\ExpenseReportStatus;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Enums\ExpenseRequestStatus;
 use App\Enums\PaymentMethod;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
 use App\Models\Budget;
 use App\Models\BudgetLedgerEntry;
+use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Models\Role;
 use App\Models\User;
@@ -192,6 +196,72 @@ class ExpenseRequestBudgetLedgerTest extends TestCase
         $this->assertSame($payment->id, $spend->source_id);
         $this->assertSame('payment', $spend->source_type);
         $this->assertSame(40_000, $spend->amount_cents);
+    }
+
+    public function test_over_cap_extension_writes_delta_only_commit_entry(): void
+    {
+        $this->seedRoles();
+        $this->createTwoStepAndApprovalPolicy();
+
+        $requester = User::factory()->forRole('asesor')->create();
+        $budget = Budget::factory()->forBudgetable('user', $requester->id)->create([
+            'period_starts_on' => now()->subYear()->toDateString(),
+            'period_ends_on' => now()->addYear()->toDateString(),
+            'amount_limit_cents' => 100_000_000,
+            'priority' => 1,
+        ]);
+
+        $expense = ExpenseRequest::factory()->create([
+            'user_id' => $requester->id,
+            'status' => ExpenseRequestStatus::Submitted,
+            'requested_amount_cents' => 50_000,
+        ]);
+
+        $service = app(ExpenseRequestApprovalService::class);
+        $service->startWorkflow($expense);
+
+        $coordUser = User::factory()->forRole('coord_regional')->create();
+        $contaUser = User::factory()->forRole('contabilidad')->create();
+        $service->approve($expense->approvals()->where('step_order', 1)->firstOrFail(), $coordUser);
+        $service->approve($expense->approvals()->where('step_order', 2)->firstOrFail(), $contaUser);
+
+        $expense->refresh();
+        // Seed a single approved receipt that pushes total over the approved cap.
+        ExpenseReport::query()->create([
+            'expense_request_id' => $expense->id,
+            'status' => ExpenseReportStatus::Approved,
+            'reported_amount_cents' => 80_000,
+            'document_type' => ExpenseReportDocumentType::Recibo,
+            'submitted_at' => now(),
+        ]);
+
+        $service->requestOverCapExtension($expense);
+
+        $expense->refresh();
+        $overCap = $expense->approvals()
+            ->where('reason', ExpenseRequestApprovalReason::OverCapExtension)
+            ->orderBy('step_order')
+            ->get();
+        $this->assertGreaterThan(0, $overCap->count());
+
+        foreach ($overCap as $approval) {
+            $type = $approval->approver_type->value;
+            // First step is coord_regional, second is contabilidad.
+            $approver = $approval->step_order - $overCap->first()->step_order === 0 ? $coordUser : $contaUser;
+            unset($type);
+            $service->approve($approval, $approver);
+        }
+
+        $deltaEntries = BudgetLedgerEntry::query()
+            ->where('source_type', $expense->getMorphClass())
+            ->where('source_id', $expense->getKey())
+            ->where('entry_type', BudgetLedgerEntryType::Commit)
+            ->where('reason', ExpenseRequestApprovalReason::OverCapExtension->value)
+            ->get();
+
+        $this->assertCount(1, $deltaEntries);
+        $this->assertSame(30_000, (int) $deltaEntries->first()->amount_cents);
+        $this->assertSame($budget->id, $deltaEntries->first()->budget_id);
     }
 
     public function test_payment_without_commit_does_not_write_spend(): void

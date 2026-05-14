@@ -6,6 +6,7 @@ use App\Enums\ApprovalGroupCombinator;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ApprovalPolicyDocumentType;
 use App\Enums\DocumentEventType;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\DocumentEvent;
 use App\Models\ExpenseRequest;
@@ -46,6 +47,7 @@ class ExpenseRequestApprovalService
                     'step_order' => $step->step_order,
                     'approver_type' => $step->approver_type,
                     'approver_id' => $step->approver_id,
+                    'reason' => ExpenseRequestApprovalReason::Initial,
                     'status' => ApprovalInstanceStatus::Pending,
                 ]);
             }
@@ -65,7 +67,12 @@ class ExpenseRequestApprovalService
             $expenseRequest = $approval->expenseRequest()->lockForUpdate()->firstOrFail();
             $expenseRequest->load(['approvals', 'user']);
 
-            if ($expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
+            $reason = $approval->reason ?? ExpenseRequestApprovalReason::Initial;
+
+            // Initial approval requires request in ApprovalInProgress status.
+            // Over-cap extension is independent of the request's lifecycle status.
+            if ($reason === ExpenseRequestApprovalReason::Initial
+                && $expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
                 throw new InvalidApprovalStateException('Expense request is not awaiting approvals.');
             }
             if ($approval->status !== ApprovalInstanceStatus::Pending) {
@@ -77,18 +84,29 @@ class ExpenseRequestApprovalService
                 $expenseRequest->user,
             );
 
-            $approvals = $expenseRequest->approvals->sortBy('step_order')->values();
-            ApprovalChainValidator::assertApprovalsMatchPolicy($approvals, $policy);
+            // Filter approvals to this reason so we can support multiple chains on one request.
+            $approvals = $expenseRequest->approvals
+                ->filter(fn (ExpenseRequestApproval $a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === $reason)
+                ->sortBy('step_order')
+                ->values();
 
             $orderedSteps = $policy->steps->sortBy('step_order')->values();
+
+            // For over-cap chains the persisted step_orders are offset from the policy.
+            // Compute the offset so we can reuse the grouper/validator on virtual orders.
+            $orderOffset = (int) ($approvals->first()?->step_order ?? 0) - (int) ($orderedSteps->first()?->step_order ?? 0);
+            $virtualApprovals = $approvals->map(fn (ExpenseRequestApproval $a) => $this->virtualizeApproval($a, $orderOffset));
+            ApprovalChainValidator::assertApprovalsMatchPolicy($virtualApprovals, $policy);
+
             $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
-            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups, $orderedSteps);
+            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($virtualApprovals, $groups, $orderedSteps);
             if ($activeIndex === null) {
                 throw new InvalidApprovalStateException('Approval chain is already complete.');
             }
 
             $activeOrders = $groups[$activeIndex];
-            if (! in_array($approval->step_order, $activeOrders, true)) {
+            $approvalVirtualOrder = $approval->step_order - $orderOffset;
+            if (! in_array($approvalVirtualOrder, $activeOrders, true)) {
                 throw new InvalidApprovalStateException('This approval step is not active yet.');
             }
 
@@ -102,11 +120,12 @@ class ExpenseRequestApprovalService
             // In AllOf groups every step must independently be approved.
             $combinator = ApprovalStepGrouper::groupCombinator($orderedSteps, $activeOrders);
             if ($combinator === ApprovalGroupCombinator::AnyOf) {
-                foreach ($expenseRequest->approvals as $peer) {
+                foreach ($approvals as $peer) {
                     if ($peer->id === $approval->id) {
                         continue;
                     }
-                    if (in_array($peer->step_order, $activeOrders, true) && $peer->status === ApprovalInstanceStatus::Pending) {
+                    $peerVirtualOrder = $peer->step_order - $orderOffset;
+                    if (in_array($peerVirtualOrder, $activeOrders, true) && $peer->status === ApprovalInstanceStatus::Pending) {
                         $peer->update(['status' => ApprovalInstanceStatus::Skipped]);
                     }
                 }
@@ -114,10 +133,15 @@ class ExpenseRequestApprovalService
 
             $expenseRequest->refresh();
             $expenseRequest->load('approvals');
-            $refreshedApprovals = $expenseRequest->approvals->sortBy('step_order')->values();
+            $refreshedApprovals = $expenseRequest->approvals
+                ->filter(fn (ExpenseRequestApproval $a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === $reason)
+                ->sortBy('step_order')
+                ->values();
+            $refreshedVirtual = $refreshedApprovals->map(fn (ExpenseRequestApproval $a) => $this->virtualizeApproval($a, $orderOffset));
 
-            $allDone = ApprovalStepGrouper::firstIncompleteGroupIndex($refreshedApprovals, $groups, $orderedSteps) === null;
-            if ($allDone) {
+            $allDone = ApprovalStepGrouper::firstIncompleteGroupIndex($refreshedVirtual, $groups, $orderedSteps) === null;
+
+            if ($allDone && $reason === ExpenseRequestApprovalReason::Initial) {
                 $expenseRequest->update([
                     'status' => ExpenseRequestStatus::PendingPayment,
                     'approved_amount_cents' => $expenseRequest->approved_amount_cents ?? $expenseRequest->requested_amount_cents,
@@ -136,15 +160,51 @@ class ExpenseRequestApprovalService
                 ]);
 
                 $this->budgetLedger->recordCommitIfApplicable($expenseRequest);
+            } elseif ($allDone && $reason === ExpenseRequestApprovalReason::OverCapExtension) {
+                $this->budgetLedger->recordCommitForApprovalReasonIfApplicable($expenseRequest, $reason);
             }
 
             $notifications = $this->notifications;
-            DB::afterCommit(function () use ($expenseRequest, $actor, $allDone, $notifications): void {
+            DB::afterCommit(function () use ($expenseRequest, $actor, $allDone, $notifications, $reason): void {
                 $fresh = $expenseRequest->fresh(['user']);
-                if ($fresh !== null) {
+                if ($fresh !== null && $reason === ExpenseRequestApprovalReason::Initial) {
                     $notifications->notifyRequesterAfterApproval($fresh, $actor, $allDone);
                 }
             });
+        });
+    }
+
+    public function requestOverCapExtension(ExpenseRequest $expenseRequest): void
+    {
+        DB::transaction(function () use ($expenseRequest): void {
+            $expenseRequest->refresh();
+            $expenseRequest->load('approvals');
+
+            $existing = $expenseRequest->approvals
+                ->first(fn (ExpenseRequestApproval $a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === ExpenseRequestApprovalReason::OverCapExtension);
+            if ($existing !== null) {
+                return;
+            }
+
+            $requester = $expenseRequest->user;
+            try {
+                $policy = $this->resolver->resolve(ApprovalPolicyDocumentType::ExpenseRequest, $requester);
+            } catch (NoActiveApprovalPolicyException) {
+                return;
+            }
+
+            $maxStepOrder = (int) ($expenseRequest->approvals->max('step_order') ?? 0);
+
+            foreach ($policy->steps->sortBy('step_order')->values() as $idx => $step) {
+                ExpenseRequestApproval::query()->create([
+                    'expense_request_id' => $expenseRequest->id,
+                    'step_order' => $maxStepOrder + $idx + 1,
+                    'approver_type' => $step->approver_type,
+                    'approver_id' => $step->approver_id,
+                    'reason' => ExpenseRequestApprovalReason::OverCapExtension,
+                    'status' => ApprovalInstanceStatus::Pending,
+                ]);
+            }
         });
     }
 
@@ -156,7 +216,10 @@ class ExpenseRequestApprovalService
         $approval->loadMissing(['expenseRequest.approvals', 'expenseRequest.user']);
         $expenseRequest = $approval->expenseRequest;
 
-        if ($expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
+        $reason = $approval->reason ?? ExpenseRequestApprovalReason::Initial;
+
+        if ($reason === ExpenseRequestApprovalReason::Initial
+            && $expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
             return false;
         }
 
@@ -169,20 +232,40 @@ class ExpenseRequestApprovalService
                 ApprovalPolicyDocumentType::ExpenseRequest,
                 $expenseRequest->user,
             );
-            $approvals = $expenseRequest->approvals->sortBy('step_order')->values();
-            ApprovalChainValidator::assertApprovalsMatchPolicy($approvals, $policy);
+            $approvals = $expenseRequest->approvals
+                ->filter(fn (ExpenseRequestApproval $a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === $reason)
+                ->sortBy('step_order')
+                ->values();
             $orderedSteps = $policy->steps->sortBy('step_order')->values();
+            $orderOffset = (int) ($approvals->first()?->step_order ?? 0) - (int) ($orderedSteps->first()?->step_order ?? 0);
+            $virtualApprovals = $approvals->map(fn (ExpenseRequestApproval $a) => $this->virtualizeApproval($a, $orderOffset));
+            ApprovalChainValidator::assertApprovalsMatchPolicy($virtualApprovals, $policy);
             $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
-            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups, $orderedSteps);
+            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($virtualApprovals, $groups, $orderedSteps);
             if ($activeIndex === null) {
                 return false;
             }
             $activeOrders = $groups[$activeIndex];
 
-            return in_array($approval->step_order, $activeOrders, true);
+            return in_array($approval->step_order - $orderOffset, $activeOrders, true);
         } catch (InvalidApprovalStateException|NoActiveApprovalPolicyException) {
             return false;
         }
+    }
+
+    private function virtualizeApproval(ExpenseRequestApproval $a, int $orderOffset): ExpenseRequestApproval
+    {
+        $clone = new ExpenseRequestApproval;
+        $clone->setRawAttributes([
+            'id' => $a->id,
+            'expense_request_id' => $a->expense_request_id,
+            'step_order' => $a->step_order - $orderOffset,
+            'approver_type' => $a->approver_type->value,
+            'approver_id' => $a->approver_id,
+            'status' => $a->status->value,
+        ], true);
+
+        return $clone;
     }
 
     public function reject(ExpenseRequestApproval $approval, User $actor, string $note): void
@@ -199,7 +282,10 @@ class ExpenseRequestApprovalService
             $expenseRequest = $approval->expenseRequest()->lockForUpdate()->firstOrFail();
             $expenseRequest->load(['approvals', 'user']);
 
-            if ($expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
+            $reason = $approval->reason ?? ExpenseRequestApprovalReason::Initial;
+
+            if ($reason === ExpenseRequestApprovalReason::Initial
+                && $expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
                 throw new InvalidApprovalStateException('Expense request is not awaiting approvals.');
             }
             if ($approval->status !== ApprovalInstanceStatus::Pending) {
@@ -211,18 +297,23 @@ class ExpenseRequestApprovalService
                 $expenseRequest->user,
             );
 
-            $approvals = $expenseRequest->approvals->sortBy('step_order')->values();
-            ApprovalChainValidator::assertApprovalsMatchPolicy($approvals, $policy);
-
+            $approvals = $expenseRequest->approvals
+                ->filter(fn (ExpenseRequestApproval $a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === $reason)
+                ->sortBy('step_order')
+                ->values();
             $orderedSteps = $policy->steps->sortBy('step_order')->values();
+            $orderOffset = (int) ($approvals->first()?->step_order ?? 0) - (int) ($orderedSteps->first()?->step_order ?? 0);
+            $virtualApprovals = $approvals->map(fn (ExpenseRequestApproval $a) => $this->virtualizeApproval($a, $orderOffset));
+            ApprovalChainValidator::assertApprovalsMatchPolicy($virtualApprovals, $policy);
+
             $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
-            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($approvals, $groups, $orderedSteps);
+            $activeIndex = ApprovalStepGrouper::firstIncompleteGroupIndex($virtualApprovals, $groups, $orderedSteps);
             if ($activeIndex === null) {
                 throw new InvalidApprovalStateException('Approval chain is already complete.');
             }
 
             $activeOrders = $groups[$activeIndex];
-            if (! in_array($approval->step_order, $activeOrders, true)) {
+            if (! in_array($approval->step_order - $orderOffset, $activeOrders, true)) {
                 throw new InvalidApprovalStateException('This approval step is not active yet.');
             }
 
@@ -233,9 +324,11 @@ class ExpenseRequestApprovalService
                 'acted_at' => now(),
             ]);
 
-            $expenseRequest->update([
-                'status' => ExpenseRequestStatus::Rejected,
-            ]);
+            if ($reason === ExpenseRequestApprovalReason::Initial) {
+                $expenseRequest->update([
+                    'status' => ExpenseRequestStatus::Rejected,
+                ]);
+            }
 
             DocumentEvent::query()->create([
                 'subject_type' => $expenseRequest->getMorphClass(),
@@ -246,9 +339,9 @@ class ExpenseRequestApprovalService
             ]);
 
             $notifications = $this->notifications;
-            DB::afterCommit(function () use ($expenseRequest, $note, $notifications): void {
+            DB::afterCommit(function () use ($expenseRequest, $note, $notifications, $reason): void {
                 $fresh = $expenseRequest->fresh(['user']);
-                if ($fresh !== null) {
+                if ($fresh !== null && $reason === ExpenseRequestApprovalReason::Initial) {
                     $notifications->notifyRequesterOnRejected($fresh, $note);
                 }
             });

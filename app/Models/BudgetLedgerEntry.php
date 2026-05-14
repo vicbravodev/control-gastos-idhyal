@@ -16,6 +16,7 @@ class BudgetLedgerEntry extends Model
         'budget_id',
         'entry_type',
         'amount_cents',
+        'reason',
         'source_type',
         'source_id',
         'reverses_ledger_entry_id',

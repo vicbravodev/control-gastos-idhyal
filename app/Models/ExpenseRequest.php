@@ -82,11 +82,34 @@ class ExpenseRequest extends Model
     }
 
     /**
+     * @return HasMany<ExpenseReport, $this>
+     */
+    public function expenseReports(): HasMany
+    {
+        return $this->hasMany(ExpenseReport::class);
+    }
+
+    /**
+     * Backward-compatible accessor returning the LATEST report.
+     *
      * @return HasOne<ExpenseReport, $this>
      */
     public function expenseReport(): HasOne
     {
-        return $this->hasOne(ExpenseReport::class);
+        return $this->hasOne(ExpenseReport::class)->latestOfMany();
+    }
+
+    /**
+     * @return HasOne<Settlement, $this>
+     */
+    public function settlement(): HasOne
+    {
+        return $this->hasOne(Settlement::class);
+    }
+
+    public function getReportedAmountCentsAttribute(): int
+    {
+        return (int) $this->expenseReports()->sum('reported_amount_cents');
     }
 
     /**

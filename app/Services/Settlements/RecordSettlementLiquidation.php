@@ -3,7 +3,6 @@
 namespace App\Services\Settlements;
 
 use App\Enums\DocumentEventType;
-use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Enums\SettlementStatus;
 use App\Models\Attachment;
@@ -34,12 +33,7 @@ final class RecordSettlementLiquidation
             throw new InvalidSettlementException(__('La solicitud no está pendiente de liquidación.'));
         }
 
-        $report = $expenseRequest->expenseReport;
-        if ($report === null || $report->status !== ExpenseReportStatus::Approved) {
-            throw new InvalidSettlementException(__('La comprobación no está aprobada.'));
-        }
-
-        $settlement = $report->settlement;
+        $settlement = $expenseRequest->settlement;
         if ($settlement === null) {
             throw new InvalidSettlementException(__('No hay balance registrado para esta solicitud.'));
         }
@@ -85,7 +79,7 @@ final class RecordSettlementLiquidation
                 'note' => '-',
                 'metadata' => [
                     'settlement_id' => $settlement->id,
-                    'expense_report_id' => $settlement->expense_report_id,
+                    'expense_request_id' => $settlement->expense_request_id,
                 ],
             ]);
 

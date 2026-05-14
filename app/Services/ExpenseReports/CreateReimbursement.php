@@ -49,11 +49,13 @@ final class CreateReimbursement
 
         $resolvedAmount = $reportedAmountCents;
         $cfdiAttributes = null;
+        $cfdiDto = null;
 
         if ($xml !== null) {
             $ingestion = $this->cfdiIngestor->ingest($xml, $reportedAmountCents);
             $resolvedAmount = $ingestion->resolvedAmountCents;
             $cfdiAttributes = $this->cfdiIngestor->metadataAttributes($ingestion->cfdi);
+            $cfdiDto = $ingestion->cfdi;
         }
 
         if ($resolvedAmount <= 0) {
@@ -69,6 +71,7 @@ final class CreateReimbursement
             $pdf,
             $xml,
             $cfdiAttributes,
+            $cfdiDto,
         ): ExpenseRequest {
             $expenseRequest = ExpenseRequest::query()->create([
                 'user_id' => $actor->id,
@@ -104,6 +107,10 @@ final class CreateReimbursement
             if ($documentType === ExpenseReportDocumentType::Factura && $xml !== null) {
                 $report = $report->fresh();
                 $this->attachments->storeKind($report, $actor, $xml, 'xml');
+            }
+
+            if ($cfdiDto !== null) {
+                $this->cfdiIngestor->persistImpuestos($report->fresh(), $cfdiDto);
             }
 
             DocumentEvent::query()->create([

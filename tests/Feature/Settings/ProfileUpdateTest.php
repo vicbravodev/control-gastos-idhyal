@@ -61,6 +61,38 @@ class ProfileUpdateTest extends TestCase
         $this->assertNotNull($user->refresh()->email_verified_at);
     }
 
+    public function test_profile_gender_can_be_updated(): void
+    {
+        $user = User::factory()->create(['gender' => null]);
+
+        $this
+            ->actingAs($user)
+            ->patch(route('profile.update'), [
+                'name' => $user->name,
+                'email' => $user->email,
+                'gender' => 'female',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertSame('female', $user->refresh()->gender->value);
+    }
+
+    public function test_profile_update_rejects_invalid_gender(): void
+    {
+        $user = User::factory()->create();
+
+        $this
+            ->actingAs($user)
+            ->from(route('profile.edit'))
+            ->patch(route('profile.update'), [
+                'name' => $user->name,
+                'email' => $user->email,
+                'gender' => 'invalid_value',
+            ])
+            ->assertSessionHasErrors('gender');
+    }
+
     public function test_user_can_delete_their_account()
     {
         $user = User::factory()->create();

@@ -50,6 +50,7 @@ export default function AdminUsersCreate({
         email: '',
         username: '',
         phone: '',
+        gender: NONE,
         password: '',
         password_confirmation: '',
         hire_date: '',
@@ -99,6 +100,7 @@ export default function AdminUsersCreate({
             email: d.email,
             username: d.username === '' ? null : d.username,
             phone: d.phone === '' ? null : d.phone,
+            gender: d.gender === NONE ? null : d.gender,
             password: d.password,
             password_confirmation: d.password_confirmation,
             role_id: d.role_id === NONE ? null : Number(d.role_id),
@@ -189,6 +191,34 @@ export default function AdminUsersCreate({
                             </div>
                             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
+                                    <Label>Género</Label>
+                                    <Select
+                                        value={data.gender}
+                                        onValueChange={(v) =>
+                                            setData('gender', v)
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Sin especificar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value={NONE}>
+                                                Sin especificar
+                                            </SelectItem>
+                                            <SelectItem value="male">
+                                                Masculino
+                                            </SelectItem>
+                                            <SelectItem value="female">
+                                                Femenino
+                                            </SelectItem>
+                                            <SelectItem value="prefer_not_to_say">
+                                                Prefiero no especificar
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.gender} />
+                                </div>
+                                <div className="grid gap-2">
                                     <Label htmlFor="hire_date">
                                         Fecha de ingreso
                                     </Label>
@@ -201,6 +231,8 @@ export default function AdminUsersCreate({
                                     />
                                     <InputError message={errors.hire_date} />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label>Rol</Label>
                                     <Select

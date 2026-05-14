@@ -6,10 +6,13 @@ use App\Services\ExpenseReports\CfdiComprobanteValidator;
 use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Config;
+use Tests\Support\CfdiTestFixtures;
 use Tests\TestCase;
 
 class CfdiComprobanteValidatorTest extends TestCase
 {
+    use CfdiTestFixtures;
+
     private CfdiComprobanteValidator $validator;
 
     protected function setUp(): void
@@ -154,6 +157,83 @@ class CfdiComprobanteValidatorTest extends TestCase
         $this->validator->validate($file, 50_000);
 
         $this->assertTrue(true);
+    }
+
+    public function test_parses_gasolina_ieps_and_marks_hidrocarburos_complement(): void
+    {
+        Config::set('expense_reports.cfdi.require_total_matches_reported', false);
+        Config::set('expense_reports.cfdi.validate_fecha_range', false);
+
+        $xml = $this->cfdiXmlGasolinaIeps();
+        $file = UploadedFile::fake()->createWithContent('gas.xml', $xml);
+
+        $cfdi = $this->validator->validate($file, 0);
+
+        $this->assertSame('601', $cfdi->emisorRegimenFiscal);
+        $this->assertTrue($cfdi->hasHidrocarburosComplement);
+
+        $byImpuestoNivel = [];
+        foreach ($cfdi->traslados as $t) {
+            $byImpuestoNivel[$t['impuesto'].':'.$t['nivel']] = $t;
+        }
+
+        $this->assertArrayHasKey('002:document', $byImpuestoNivel);
+        $this->assertSame('IVA', $byImpuestoNivel['002:document']['impuesto_label']);
+        $this->assertSame('Tasa', $byImpuestoNivel['002:document']['tipo_factor']);
+        $this->assertSame(4986, $byImpuestoNivel['002:document']['importe_cents']);
+
+        $this->assertArrayHasKey('003:document', $byImpuestoNivel);
+        $this->assertSame('IEPS', $byImpuestoNivel['003:document']['impuesto_label']);
+        $this->assertSame('Cuota', $byImpuestoNivel['003:document']['tipo_factor']);
+        $this->assertSame(914, $byImpuestoNivel['003:document']['importe_cents']);
+    }
+
+    public function test_parses_hospedaje_ish_impuesto_local(): void
+    {
+        Config::set('expense_reports.cfdi.require_total_matches_reported', false);
+        Config::set('expense_reports.cfdi.validate_fecha_range', false);
+
+        $xml = $this->cfdiXmlHospedajeIsh();
+        $file = UploadedFile::fake()->createWithContent('h.xml', $xml);
+
+        $cfdi = $this->validator->validate($file, 0);
+
+        $this->assertCount(1, $cfdi->impuestosLocales);
+        $this->assertSame('ISH', $cfdi->impuestosLocales[0]['clave']);
+        $this->assertSame('traslado', $cfdi->impuestosLocales[0]['tipo']);
+        $this->assertSame(7128, $cfdi->impuestosLocales[0]['importe_cents']);
+        $this->assertEqualsWithDelta(0.03, $cfdi->impuestosLocales[0]['tasa'], 0.0001);
+        $this->assertFalse($cfdi->hasHidrocarburosComplement);
+    }
+
+    public function test_parses_resico_retencion_isr(): void
+    {
+        Config::set('expense_reports.cfdi.require_total_matches_reported', false);
+        Config::set('expense_reports.cfdi.validate_fecha_range', false);
+
+        $xml = $this->cfdiXmlResicoRetencionIsr();
+        $file = UploadedFile::fake()->createWithContent('r.xml', $xml);
+
+        $cfdi = $this->validator->validate($file, 0);
+
+        $this->assertSame('626', $cfdi->emisorRegimenFiscal);
+        $this->assertNotEmpty($cfdi->retenciones);
+
+        $documentRetenciones = array_values(array_filter(
+            $cfdi->retenciones,
+            fn (array $r): bool => $r['nivel'] === 'document',
+        ));
+        $this->assertCount(1, $documentRetenciones);
+        $this->assertSame('001', $documentRetenciones[0]['impuesto']);
+        $this->assertSame('ISR', $documentRetenciones[0]['impuesto_label']);
+        $this->assertSame(398, $documentRetenciones[0]['importe_cents']);
+
+        $conceptRetenciones = array_values(array_filter(
+            $cfdi->retenciones,
+            fn (array $r): bool => $r['nivel'] === 'concept',
+        ));
+        $this->assertCount(1, $conceptRetenciones);
+        $this->assertEqualsWithDelta(0.0125, $conceptRetenciones[0]['tasa_o_cuota'], 0.000001);
     }
 
     private function cfdiXmlString(int $majorVersion, string $total, string $moneda): string

@@ -3,6 +3,7 @@
 namespace App\Services\Budgets;
 
 use App\Enums\BudgetLedgerEntryType;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Models\BudgetLedgerEntry;
 use App\Models\ExpenseRequest;
 use App\Models\Payment;
@@ -19,7 +20,7 @@ final class ExpenseRequestBudgetLedgerWriter
 
     public function recordCommitIfApplicable(ExpenseRequest $expenseRequest): void
     {
-        if ($this->hasCommitEntry($expenseRequest)) {
+        if ($this->hasCommitEntryForReason($expenseRequest, ExpenseRequestApprovalReason::Initial)) {
             return;
         }
 
@@ -37,6 +38,49 @@ final class ExpenseRequestBudgetLedgerWriter
             'budget_id' => $budget->id,
             'entry_type' => BudgetLedgerEntryType::Commit,
             'amount_cents' => $approved,
+            'reason' => ExpenseRequestApprovalReason::Initial->value,
+            'source_type' => $expenseRequest->getMorphClass(),
+            'source_id' => $expenseRequest->getKey(),
+            'reverses_ledger_entry_id' => null,
+        ]);
+    }
+
+    public function recordCommitForApprovalReasonIfApplicable(
+        ExpenseRequest $expenseRequest,
+        ExpenseRequestApprovalReason $reason,
+    ): void {
+        if ($reason === ExpenseRequestApprovalReason::Initial) {
+            $this->recordCommitIfApplicable($expenseRequest);
+
+            return;
+        }
+
+        if ($this->hasCommitEntryForReason($expenseRequest, $reason)) {
+            return;
+        }
+
+        $expenseRequest->refresh();
+        $approved = (int) ($expenseRequest->approved_amount_cents ?? 0);
+        if ($approved <= 0) {
+            return;
+        }
+
+        $totalReported = (int) $expenseRequest->expenseReports()->sum('reported_amount_cents');
+        $delta = $totalReported - $approved;
+        if ($delta <= 0) {
+            return;
+        }
+
+        $budget = $this->resolver->resolve($expenseRequest);
+        if ($budget === null) {
+            return;
+        }
+
+        BudgetLedgerEntry::query()->create([
+            'budget_id' => $budget->id,
+            'entry_type' => BudgetLedgerEntryType::Commit,
+            'amount_cents' => $delta,
+            'reason' => $reason->value,
             'source_type' => $expenseRequest->getMorphClass(),
             'source_id' => $expenseRequest->getKey(),
             'reverses_ledger_entry_id' => null,
@@ -64,12 +108,13 @@ final class ExpenseRequestBudgetLedgerWriter
         ]);
     }
 
-    private function hasCommitEntry(ExpenseRequest $expenseRequest): bool
+    private function hasCommitEntryForReason(ExpenseRequest $expenseRequest, ExpenseRequestApprovalReason $reason): bool
     {
         return BudgetLedgerEntry::query()
             ->where('source_type', $expenseRequest->getMorphClass())
             ->where('source_id', $expenseRequest->getKey())
             ->where('entry_type', BudgetLedgerEntryType::Commit)
+            ->where('reason', $reason->value)
             ->exists();
     }
 
@@ -88,6 +133,7 @@ final class ExpenseRequestBudgetLedgerWriter
             ->where('source_type', $expenseRequest->getMorphClass())
             ->where('source_id', $expenseRequest->getKey())
             ->where('entry_type', BudgetLedgerEntryType::Commit)
+            ->orderBy('id')
             ->first();
     }
 }

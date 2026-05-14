@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserGender;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
@@ -40,7 +41,15 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
             'hire_date' => null,
+            'gender' => fake()->randomElement(UserGender::cases()),
         ];
+    }
+
+    public function withGender(UserGender $gender): static
+    {
+        return $this->state(fn (): array => [
+            'gender' => $gender,
+        ]);
     }
 
     public function withHireDate(?CarbonInterface $date = null): static

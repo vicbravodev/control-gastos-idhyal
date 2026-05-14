@@ -2,6 +2,9 @@
 
 namespace App\Services\ExpenseReports;
 
+use App\Models\CfdiImpuestoLocal;
+use App\Models\CfdiRetencion;
+use App\Models\CfdiTraslado;
 use App\Models\ExpenseReport;
 use App\Services\ExpenseReports\Exceptions\DuplicateCfdiException;
 use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
@@ -58,6 +61,7 @@ final class CfdiComprobanteIngestor
             'cfdi_uuid' => $cfdi->uuid,
             'cfdi_emisor_rfc' => $cfdi->emisorRfc,
             'cfdi_emisor_nombre' => $cfdi->emisorNombre,
+            'cfdi_emisor_regimen_fiscal' => $cfdi->emisorRegimenFiscal,
             'cfdi_receptor_rfc' => $cfdi->receptorRfc,
             'cfdi_receptor_nombre' => $cfdi->receptorNombre,
             'cfdi_fecha' => $cfdi->fecha,
@@ -67,7 +71,37 @@ final class CfdiComprobanteIngestor
             'cfdi_metodo_pago' => $cfdi->metodoPago,
             'cfdi_uso_cfdi' => $cfdi->usoCfdi,
             'cfdi_conceptos' => $cfdi->conceptos,
+            'cfdi_has_hidrocarburos_complement' => $cfdi->hasHidrocarburosComplement,
         ];
+    }
+
+    /**
+     * Persist the parsed impuesto rows for a given report. Replaces any
+     * prior rows (idempotent on re-ingest of the same report).
+     */
+    public function persistImpuestos(ExpenseReport $report, CfdiComprobante $cfdi): void
+    {
+        CfdiTraslado::query()->where('expense_report_id', $report->id)->delete();
+        CfdiRetencion::query()->where('expense_report_id', $report->id)->delete();
+        CfdiImpuestoLocal::query()->where('expense_report_id', $report->id)->delete();
+
+        foreach ($cfdi->traslados as $row) {
+            CfdiTraslado::query()->create(array_merge($row, [
+                'expense_report_id' => $report->id,
+            ]));
+        }
+
+        foreach ($cfdi->retenciones as $row) {
+            CfdiRetencion::query()->create(array_merge($row, [
+                'expense_report_id' => $report->id,
+            ]));
+        }
+
+        foreach ($cfdi->impuestosLocales as $row) {
+            CfdiImpuestoLocal::query()->create(array_merge($row, [
+                'expense_report_id' => $report->id,
+            ]));
+        }
     }
 
     /**

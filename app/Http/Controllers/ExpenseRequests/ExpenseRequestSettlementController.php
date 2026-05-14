@@ -25,13 +25,13 @@ class ExpenseRequestSettlementController extends Controller
 
         $expenseRequests = ExpenseRequest::query()
             ->where('status', ExpenseRequestStatus::SettlementPending)
-            ->whereHas('expenseReport.settlement', function ($query): void {
+            ->whereHas('settlement', function ($query): void {
                 $query->whereIn('status', [
                     SettlementStatus::PendingUserReturn,
                     SettlementStatus::PendingCompanyPayment,
                 ]);
             })
-            ->with(['user', 'expenseConcept', 'expenseReport.settlement'])
+            ->with(['user', 'expenseConcept', 'settlement'])
             ->when($request->query('search'), fn ($q, $search) => $q->where(fn ($sub) => $sub->where('folio', 'like', "%{$search}%")->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$search}%"))))
             ->latest()
             ->paginate(15)
@@ -44,11 +44,11 @@ class ExpenseRequestSettlementController extends Controller
                     'id' => $r->user->id,
                     'name' => $r->user->name,
                 ],
-                'settlement' => $r->expenseReport?->settlement === null ? null : [
-                    'status' => $r->expenseReport->settlement->status->value,
-                    'difference_cents' => $r->expenseReport->settlement->difference_cents,
-                    'basis_amount_cents' => $r->expenseReport->settlement->basis_amount_cents,
-                    'reported_amount_cents' => $r->expenseReport->settlement->reported_amount_cents,
+                'settlement' => $r->settlement === null ? null : [
+                    'status' => $r->settlement->status->value,
+                    'difference_cents' => $r->settlement->difference_cents,
+                    'basis_amount_cents' => $r->settlement->basis_amount_cents,
+                    'reported_amount_cents' => $r->settlement->reported_amount_cents,
                 ],
             ]);
 

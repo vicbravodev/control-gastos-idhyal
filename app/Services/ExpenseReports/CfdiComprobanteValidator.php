@@ -24,6 +24,10 @@ final class CfdiComprobanteValidator
 
     private const TFD_URI = 'http://www.sat.gob.mx/TimbreFiscalDigital';
 
+    private const IMPLOCAL_URI = 'http://www.sat.gob.mx/implocal';
+
+    private const HIDROCARBUROS_URI = 'http://www.sat.gob.mx/hidrocarburospetroliferos';
+
     /**
      * Backwards-compatible facade: parsea + valida reglas de negocio.
      *
@@ -80,6 +84,7 @@ final class CfdiComprobanteValidator
             version: $version,
             emisorRfc: $this->trimmedAttr($emisor, 'Rfc'),
             emisorNombre: $this->trimmedAttr($emisor, 'Nombre'),
+            emisorRegimenFiscal: $this->trimmedAttr($emisor, 'RegimenFiscal'),
             receptorRfc: $this->trimmedAttr($receptor, 'Rfc'),
             receptorNombre: $this->trimmedAttr($receptor, 'Nombre'),
             fecha: $this->parseFecha($element->getAttribute('Fecha')),
@@ -89,6 +94,10 @@ final class CfdiComprobanteValidator
             metodoPago: $this->trimmedAttr($element, 'MetodoPago'),
             usoCfdi: $this->trimmedAttr($receptor, 'UsoCFDI'),
             conceptos: $this->parseConceptos($element),
+            traslados: $this->parseTraslados($element),
+            retenciones: $this->parseRetenciones($element),
+            impuestosLocales: $this->parseImpuestosLocales($element),
+            hasHidrocarburosComplement: $this->detectHidrocarburosComplement($element),
         );
     }
 
@@ -326,5 +335,265 @@ final class CfdiComprobanteValidator
         }
 
         return (float) $normalized;
+    }
+
+    private function amountToCents(?float $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+        if (function_exists('bcmul')) {
+            return (int) bcmul((string) $value, '100', 0);
+        }
+
+        return (int) round($value * 100.0);
+    }
+
+    /**
+     * @return list<array{impuesto: string, impuesto_label: string, tipo_factor: string, tasa_o_cuota: ?float, base_cents: int, importe_cents: int, nivel: string, concepto_index: ?int}>
+     */
+    private function parseTraslados(DOMElement $comprobante): array
+    {
+        $out = [];
+
+        $docImpuestos = $this->firstSatChild($comprobante, 'Impuestos');
+        if ($docImpuestos !== null) {
+            foreach ($this->satChildrenChain($docImpuestos, ['Traslados', 'Traslado']) as $node) {
+                $impuesto = (string) ($this->trimmedAttr($node, 'Impuesto') ?? '');
+                if ($impuesto === '') {
+                    continue;
+                }
+                $out[] = [
+                    'impuesto' => $impuesto,
+                    'impuesto_label' => CfdiImpuestoCatalog::label($impuesto),
+                    'tipo_factor' => (string) ($this->trimmedAttr($node, 'TipoFactor') ?? 'Tasa'),
+                    'tasa_o_cuota' => $this->floatAttr($node, 'TasaOCuota'),
+                    'base_cents' => $this->amountToCents($this->floatAttr($node, 'Base')),
+                    'importe_cents' => $this->amountToCents($this->floatAttr($node, 'Importe')),
+                    'nivel' => 'document',
+                    'concepto_index' => null,
+                ];
+            }
+        }
+
+        $conceptos = $this->firstSatChild($comprobante, 'Conceptos');
+        if ($conceptos !== null) {
+            $index = 0;
+            foreach ($conceptos->childNodes as $concepto) {
+                if (! ($concepto instanceof DOMElement)) {
+                    continue;
+                }
+                if (($concepto->localName ?? $concepto->tagName) !== 'Concepto') {
+                    continue;
+                }
+                $impuestos = $this->firstSatChild($concepto, 'Impuestos');
+                if ($impuestos !== null) {
+                    foreach ($this->satChildrenChain($impuestos, ['Traslados', 'Traslado']) as $node) {
+                        $impuesto = (string) ($this->trimmedAttr($node, 'Impuesto') ?? '');
+                        if ($impuesto === '') {
+                            continue;
+                        }
+                        $out[] = [
+                            'impuesto' => $impuesto,
+                            'impuesto_label' => CfdiImpuestoCatalog::label($impuesto),
+                            'tipo_factor' => (string) ($this->trimmedAttr($node, 'TipoFactor') ?? 'Tasa'),
+                            'tasa_o_cuota' => $this->floatAttr($node, 'TasaOCuota'),
+                            'base_cents' => $this->amountToCents($this->floatAttr($node, 'Base')),
+                            'importe_cents' => $this->amountToCents($this->floatAttr($node, 'Importe')),
+                            'nivel' => 'concept',
+                            'concepto_index' => $index,
+                        ];
+                    }
+                }
+                $index++;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{impuesto: string, impuesto_label: string, tipo_factor: ?string, tasa_o_cuota: ?float, base_cents: ?int, importe_cents: int, nivel: string, concepto_index: ?int}>
+     */
+    private function parseRetenciones(DOMElement $comprobante): array
+    {
+        $out = [];
+
+        $docImpuestos = $this->firstSatChild($comprobante, 'Impuestos');
+        if ($docImpuestos !== null) {
+            foreach ($this->satChildrenChain($docImpuestos, ['Retenciones', 'Retencion']) as $node) {
+                $impuesto = (string) ($this->trimmedAttr($node, 'Impuesto') ?? '');
+                if ($impuesto === '') {
+                    continue;
+                }
+                $base = $this->floatAttr($node, 'Base');
+                $out[] = [
+                    'impuesto' => $impuesto,
+                    'impuesto_label' => CfdiImpuestoCatalog::label($impuesto),
+                    'tipo_factor' => $this->trimmedAttr($node, 'TipoFactor'),
+                    'tasa_o_cuota' => $this->floatAttr($node, 'TasaOCuota'),
+                    'base_cents' => $base !== null ? $this->amountToCents($base) : null,
+                    'importe_cents' => $this->amountToCents($this->floatAttr($node, 'Importe')),
+                    'nivel' => 'document',
+                    'concepto_index' => null,
+                ];
+            }
+        }
+
+        $conceptos = $this->firstSatChild($comprobante, 'Conceptos');
+        if ($conceptos !== null) {
+            $index = 0;
+            foreach ($conceptos->childNodes as $concepto) {
+                if (! ($concepto instanceof DOMElement)) {
+                    continue;
+                }
+                if (($concepto->localName ?? $concepto->tagName) !== 'Concepto') {
+                    continue;
+                }
+                $impuestos = $this->firstSatChild($concepto, 'Impuestos');
+                if ($impuestos !== null) {
+                    foreach ($this->satChildrenChain($impuestos, ['Retenciones', 'Retencion']) as $node) {
+                        $impuesto = (string) ($this->trimmedAttr($node, 'Impuesto') ?? '');
+                        if ($impuesto === '') {
+                            continue;
+                        }
+                        $base = $this->floatAttr($node, 'Base');
+                        $out[] = [
+                            'impuesto' => $impuesto,
+                            'impuesto_label' => CfdiImpuestoCatalog::label($impuesto),
+                            'tipo_factor' => $this->trimmedAttr($node, 'TipoFactor'),
+                            'tasa_o_cuota' => $this->floatAttr($node, 'TasaOCuota'),
+                            'base_cents' => $base !== null ? $this->amountToCents($base) : null,
+                            'importe_cents' => $this->amountToCents($this->floatAttr($node, 'Importe')),
+                            'nivel' => 'concept',
+                            'concepto_index' => $index,
+                        ];
+                    }
+                }
+                $index++;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{clave: string, tipo: string, tasa: ?float, importe_cents: int}>
+     */
+    private function parseImpuestosLocales(DOMElement $comprobante): array
+    {
+        $complemento = $this->firstSatChild($comprobante, 'Complemento');
+        if ($complemento === null) {
+            return [];
+        }
+
+        $impLocal = null;
+        foreach ($complemento->childNodes as $child) {
+            if ($child instanceof DOMElement
+                && ($child->localName ?? '') === 'ImpuestosLocales'
+                && ($child->namespaceURI ?? '') === self::IMPLOCAL_URI
+            ) {
+                $impLocal = $child;
+                break;
+            }
+        }
+        if ($impLocal === null) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($impLocal->childNodes as $row) {
+            if (! ($row instanceof DOMElement)) {
+                continue;
+            }
+            $local = $row->localName ?? '';
+            if ($local !== 'TrasladosLocales' && $local !== 'RetencionesLocales') {
+                continue;
+            }
+            if (($row->namespaceURI ?? '') !== self::IMPLOCAL_URI) {
+                continue;
+            }
+
+            $tipo = $local === 'TrasladosLocales' ? 'traslado' : 'retencion';
+            $claveAttr = $local === 'TrasladosLocales' ? 'ImpLocTrasladado' : 'ImpLocRetenido';
+            $tasaAttr = $local === 'TrasladosLocales' ? 'TasadeTraslado' : 'TasadeRetencion';
+            $clave = $this->trimmedAttr($row, $claveAttr);
+            if ($clave === null) {
+                continue;
+            }
+            $tasa = $this->floatAttr($row, $tasaAttr);
+            $out[] = [
+                'clave' => $clave,
+                'tipo' => $tipo,
+                'tasa' => $tasa !== null ? round($tasa / 100, 4) : null,
+                'importe_cents' => $this->amountToCents($this->floatAttr($row, 'Importe')),
+            ];
+        }
+
+        return $out;
+    }
+
+    private function detectHidrocarburosComplement(DOMElement $comprobante): bool
+    {
+        $conceptos = $this->firstSatChild($comprobante, 'Conceptos');
+        if ($conceptos === null) {
+            return false;
+        }
+
+        foreach ($conceptos->childNodes as $concepto) {
+            if (! ($concepto instanceof DOMElement)) {
+                continue;
+            }
+            if (($concepto->localName ?? $concepto->tagName) !== 'Concepto') {
+                continue;
+            }
+            foreach ($concepto->childNodes as $child) {
+                if (! ($child instanceof DOMElement)) {
+                    continue;
+                }
+                if (($child->localName ?? '') !== 'ComplementoConcepto') {
+                    continue;
+                }
+                foreach ($child->childNodes as $sub) {
+                    if ($sub instanceof DOMElement
+                        && ($sub->namespaceURI ?? '') === self::HIDROCARBUROS_URI
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Recursively descend `$path` SAT-namespaced child nodes and yield each leaf node.
+     *
+     * @param  list<string>  $path
+     * @return iterable<DOMElement>
+     */
+    private function satChildrenChain(DOMElement $start, array $path): iterable
+    {
+        if ($path === []) {
+            yield $start;
+
+            return;
+        }
+
+        [$head, $rest] = [array_shift($path), $path];
+
+        foreach ($start->childNodes as $child) {
+            if (! ($child instanceof DOMElement)) {
+                continue;
+            }
+            if (($child->localName ?? $child->tagName) !== $head) {
+                continue;
+            }
+            if (! in_array($child->namespaceURI ?? '', self::SAT_COMPROBANTE_URIS, true)) {
+                continue;
+            }
+            yield from $this->satChildrenChain($child, $rest);
+        }
     }
 }

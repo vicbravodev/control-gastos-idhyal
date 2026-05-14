@@ -44,7 +44,7 @@ import DocumentsSection from './_show/documents-section';
 import ExpenseReportCfdiCard from './_show/expense-report-cfdi-card';
 import ExpenseReportSummaryCard from './_show/expense-report-summary-card';
 import PaymentSummaryCard from './_show/payment-summary-card';
-import type { Detail } from './_show/types';
+import type { BalanceSummary, Detail } from './_show/types';
 
 const breadcrumbs = (id: number): BreadcrumbItem[] => [
     { title: 'Dashboard', href: dashboard() },
@@ -481,24 +481,28 @@ export default function ExpenseRequestsShow({
                             </div>
                         </CardSection>
 
-                        {expenseRequest.expense_report ? (
-                            <ExpenseReportSummaryCard
-                                expenseRequestId={expenseRequest.id}
-                                report={expenseRequest.expense_report}
-                                canDownloadPdf={
-                                    canDownloadExpenseReportVerificationPdf
-                                }
-                                canDownloadXml={
-                                    canDownloadExpenseReportVerificationXml
-                                }
-                            />
-                        ) : null}
+                        <BalanceCard balance={expenseRequest.balance} />
 
-                        {expenseRequest.expense_report?.cfdi ? (
-                            <ExpenseReportCfdiCard
-                                cfdi={expenseRequest.expense_report.cfdi}
-                            />
-                        ) : null}
+                        {expenseRequest.expense_reports.map((report) => (
+                            <div key={report.id} className="space-y-3">
+                                <ExpenseReportSummaryCard
+                                    expenseRequestId={expenseRequest.id}
+                                    report={report}
+                                    canDownloadPdf={
+                                        canDownloadExpenseReportVerificationPdf
+                                    }
+                                    canDownloadXml={
+                                        canDownloadExpenseReportVerificationXml
+                                    }
+                                />
+                                {report.cfdi ? (
+                                    <ExpenseReportCfdiCard
+                                        cfdi={report.cfdi}
+                                        label={report.label}
+                                    />
+                                ) : null}
+                            </div>
+                        ))}
 
                         {expenseRequest.payment ? (
                             <PaymentSummaryCard
@@ -521,6 +525,64 @@ export default function ExpenseRequestsShow({
                 </div>
             </div>
         </AppLayout>
+    );
+}
+
+function BalanceCard({ balance }: { balance: BalanceSummary }) {
+    const remainingNegative = balance.remaining_cents < 0;
+    return (
+        <section className="overflow-hidden rounded-xl border border-border bg-card">
+            <header className="flex items-center gap-2.5 border-b border-border px-5 py-3.5">
+                <h2 className="text-sm font-semibold">Balance comprobado</h2>
+            </header>
+            <div className="px-5 py-3">
+                <div className="flex items-baseline justify-between gap-4 py-1">
+                    <span className="text-sm text-muted-foreground">
+                        Aprobado
+                    </span>
+                    <span className="t-num text-sm font-medium">
+                        {formatCentsMx(balance.approved_cents)}
+                    </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4 py-1">
+                    <span className="text-sm text-muted-foreground">
+                        Comprobado
+                    </span>
+                    <span className="t-num text-sm font-medium">
+                        {formatCentsMx(balance.reported_cents)}
+                    </span>
+                </div>
+                <div className="flex items-baseline justify-between gap-4 py-1">
+                    <span className="text-sm text-muted-foreground">
+                        Restante
+                    </span>
+                    <span
+                        className={`t-num text-sm font-semibold ${remainingNegative ? 'text-red-600 dark:text-red-400' : ''}`}
+                    >
+                        {formatCentsMx(balance.remaining_cents)}
+                    </span>
+                </div>
+                {balance.over_cap ? (
+                    <Alert className="mt-3 border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                        <AlertTitle>
+                            Excediste el monto aprobado
+                        </AlertTitle>
+                        <AlertDescription>
+                            Se requiere una aprobación adicional por el exceso.
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+                {balance.over_cap_pending_extra_approval ? (
+                    <Alert className="mt-3 border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                        <AlertTitle>Aprobación extra requerida</AlertTitle>
+                        <AlertDescription>
+                            Hay pasos de aprobación pendientes por el exceso de
+                            presupuesto.
+                        </AlertDescription>
+                    </Alert>
+                ) : null}
+            </div>
+        </section>
     );
 }
 

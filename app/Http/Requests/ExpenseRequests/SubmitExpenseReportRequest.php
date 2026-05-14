@@ -32,6 +32,7 @@ class SubmitExpenseReportRequest extends FormRequest
             'document_type' => ['required', Rule::enum(ExpenseReportDocumentType::class)],
             'pdf' => ['required', 'file', 'mimes:pdf', 'max:10240'],
             'xml' => [$isFactura ? 'required' : 'nullable', 'file', 'mimes:xml', 'max:10240'],
+            'label' => ['nullable', 'string', 'max:64'],
         ];
     }
 

@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\ExpenseReportStatus;
+use App\Enums\ExpenseRequestStatus;
 use App\Models\ExpenseReport;
 use App\Models\User;
 
@@ -41,6 +42,25 @@ class ExpenseReportPolicy
             ExpenseReportStatus::Draft,
             ExpenseReportStatus::Rejected,
         ], true);
+    }
+
+    public function validateReceipt(User $user, ExpenseReport $expenseReport): bool
+    {
+        if (! $user->hasPermission('expense_report.review')) {
+            return false;
+        }
+
+        $expenseReport->loadMissing('expenseRequest');
+        $expenseRequest = $expenseReport->expenseRequest;
+
+        return $expenseRequest !== null
+            && $expenseRequest->status === ExpenseRequestStatus::ExpenseReportInReview
+            && $expenseReport->status === ExpenseReportStatus::AccountingReview;
+    }
+
+    public function rejectReceipt(User $user, ExpenseReport $expenseReport): bool
+    {
+        return $this->validateReceipt($user, $expenseReport);
     }
 
     public function delete(User $user, ExpenseReport $expenseReport): bool

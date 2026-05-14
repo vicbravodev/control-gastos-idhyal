@@ -21,13 +21,22 @@ export default function ExpenseReportSummaryCard({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Comprobación de gasto</CardTitle>
+                <CardTitle>
+                    {report.label
+                        ? `Comprobación: ${report.label}`
+                        : 'Comprobación de gasto'}
+                </CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="divide-y">
                     <DataRow label="Estado">
                         <StatusBadge status={report.status} />
                     </DataRow>
+                    {report.reviewer_name ? (
+                        <DataRow label="Revisado por">
+                            {report.reviewer_name}
+                        </DataRow>
+                    ) : null}
                     <DataRow label="Tipo de documento">
                         {report.document_type_label}
                     </DataRow>

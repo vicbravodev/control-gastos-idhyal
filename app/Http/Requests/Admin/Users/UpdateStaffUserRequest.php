@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin\Users;
 
+use App\Enums\UserGender;
 use App\Models\State;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -48,6 +49,7 @@ class UpdateStaffUserRequest extends FormRequest
                 Rule::unique(User::class, 'username')->ignore($target->id),
             ],
             'phone' => ['nullable', 'string', 'max:32'],
+            'gender' => ['nullable', Rule::enum(UserGender::class)],
             'role_id' => ['nullable', 'integer', Rule::exists('roles', 'id')],
             'region_id' => ['nullable', 'integer', Rule::exists('regions', 'id')],
             'state_id' => ['nullable', 'integer', Rule::exists('states', 'id')],

@@ -43,7 +43,9 @@ export default function ExpenseReportReviewCard({
                     onSubmit={(e) => {
                         e.preventDefault();
                         approveForm.post(
-                            ExpenseReportController.approve.url({
+                            ExpenseReportController.approve[
+                                '/expense-requests/{expenseRequest}/expense-report/approve/{expenseReport?}'
+                            ].url({
                                 expenseRequest: expenseRequestId,
                             }),
                             { preserveScroll: true },
@@ -118,7 +120,9 @@ export default function ExpenseReportReviewCard({
                 onConfirm={() => {
                     setConfirmReject(false);
                     rejectForm.post(
-                        ExpenseReportController.reject.url({
+                        ExpenseReportController.reject[
+                            '/expense-requests/{expenseRequest}/expense-report/reject/{expenseReport?}'
+                        ].url({
                             expenseRequest: expenseRequestId,
                         }),
                         { preserveScroll: true },

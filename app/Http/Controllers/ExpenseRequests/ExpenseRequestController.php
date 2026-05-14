@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\ExpenseRequests;
 
+use App\Enums\ApprovalInstanceStatus;
 use App\Enums\DocumentEventType;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Enums\ExpenseRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequests\CancelExpenseRequestRequest;
@@ -13,6 +15,7 @@ use App\Http\Requests\ExpenseRequests\UpdateExpenseRequestRequest;
 use App\Models\Attachment;
 use App\Models\DocumentEvent;
 use App\Models\ExpenseConcept;
+use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Models\User;
 use App\Services\Approvals\Exceptions\InvalidApprovalStateException;
@@ -217,8 +220,12 @@ class ExpenseRequestController extends Controller
             'attachments',
             'payments.recordedBy',
             'payments.attachments',
-            'expenseReport.attachments',
-            'expenseReport.settlement.attachments',
+            'expenseReports.attachments',
+            'expenseReports.reviewer',
+            'expenseReports.cfdiTraslados',
+            'expenseReports.cfdiRetenciones',
+            'expenseReports.cfdiImpuestosLocales',
+            'settlement.attachments',
             'documentEvents.actor',
         ]);
         $user = auth()->user();
@@ -230,18 +237,20 @@ class ExpenseRequestController extends Controller
             ->sortBy('id')
             ->first();
 
-        $verificationPdfAttachment = $expenseRequest->expenseReport !== null
-            ? $expenseReportAttachments->findVerificationAttachment($expenseRequest->expenseReport, 'pdf')
+        $latestReport = $expenseRequest->expenseReport;
+        $verificationPdfAttachment = $latestReport !== null
+            ? $expenseReportAttachments->findVerificationAttachment($latestReport, 'pdf')
             : null;
-        $verificationXmlAttachment = $expenseRequest->expenseReport !== null
-            ? $expenseReportAttachments->findVerificationAttachment($expenseRequest->expenseReport, 'xml')
+        $verificationXmlAttachment = $latestReport !== null
+            ? $expenseReportAttachments->findVerificationAttachment($latestReport, 'xml')
             : null;
 
         return Inertia::render('expense-requests/show', [
             'expenseRequest' => array_merge($this->toDetail($expenseRequest), [
                 'approval_progress' => $approvalProgress->snapshot($expenseRequest),
                 'payment' => $this->toPaymentSummary($expenseRequest),
-                'expense_report' => $this->toExpenseReportPayload($expenseRequest, $expenseReportAttachments),
+                'expense_reports' => $this->toExpenseReportsPayload($expenseRequest, $expenseReportAttachments),
+                'balance' => $this->toBalancePayload($expenseRequest),
                 'settlement' => $this->toSettlementSummary($expenseRequest),
                 'submission_attachments' => $this->toSubmissionAttachmentsPayload($expenseRequest, $user),
                 'document_timeline' => $documentEventTimeline->present(Collection::make($expenseRequest->documentEvents)),
@@ -510,6 +519,7 @@ class ExpenseRequestController extends Controller
             'approvals' => $r->approvals->sortBy('step_order')->values()->map(fn ($a) => [
                 'id' => $a->id,
                 'step_order' => $a->step_order,
+                'reason' => ($a->reason ?? ExpenseRequestApprovalReason::Initial)->value,
                 'status' => $a->status->value,
                 'approver' => [
                     'type' => $a->approver_type->value,
@@ -593,24 +603,26 @@ class ExpenseRequestController extends Controller
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return list<array<string, mixed>>
      */
-    private function toExpenseReportPayload(
+    private function toExpenseReportsPayload(
         ExpenseRequest $expenseRequest,
         ExpenseReportAttachmentWriter $writer,
-    ): ?array {
-        $report = $expenseRequest->expenseReport;
-        if ($report === null) {
-            return null;
-        }
+    ): array {
+        $reports = $expenseRequest->relationLoaded('expenseReports')
+            ? $expenseRequest->expenseReports
+            : $expenseRequest->expenseReports()->orderBy('id')->get();
 
-        return [
+        return $reports->sortBy('id')->values()->map(fn (ExpenseReport $report) => [
             'id' => $report->id,
             'status' => $report->status->value,
+            'label' => $report->label,
             'reported_amount_cents' => $report->reported_amount_cents,
             'document_type' => $report->document_type->value,
             'document_type_label' => $report->document_type->label(),
             'submitted_at' => $report->submitted_at?->toIso8601String(),
+            'reviewer_name' => $report->reviewed_at !== null ? $report->reviewer?->name : null,
+            'reviewed_at' => $report->reviewed_at?->toIso8601String(),
             'has_pdf_and_xml' => $writer->hasPdfAndXml($report),
             'verification_pdf_attachment_id' => $writer->findVerificationAttachment($report, 'pdf')?->id,
             'verification_xml_attachment_id' => $writer->findVerificationAttachment($report, 'xml')?->id,
@@ -618,6 +630,7 @@ class ExpenseRequestController extends Controller
                 'uuid' => $report->cfdi_uuid,
                 'emisor_rfc' => $report->cfdi_emisor_rfc,
                 'emisor_nombre' => $report->cfdi_emisor_nombre,
+                'emisor_regimen_fiscal' => $report->cfdi_emisor_regimen_fiscal,
                 'receptor_rfc' => $report->cfdi_receptor_rfc,
                 'receptor_nombre' => $report->cfdi_receptor_nombre,
                 'fecha' => $report->cfdi_fecha?->toIso8601String(),
@@ -627,7 +640,62 @@ class ExpenseRequestController extends Controller
                 'metodo_pago' => $report->cfdi_metodo_pago,
                 'uso_cfdi' => $report->cfdi_uso_cfdi,
                 'conceptos' => $report->cfdi_conceptos ?? [],
+                'has_hidrocarburos_complement' => (bool) $report->cfdi_has_hidrocarburos_complement,
+                'traslados' => $report->cfdiTraslados->map(fn ($t) => [
+                    'impuesto' => $t->impuesto,
+                    'impuesto_label' => $t->impuesto_label,
+                    'tipo_factor' => $t->tipo_factor,
+                    'tasa_o_cuota' => $t->tasa_o_cuota !== null ? (float) $t->tasa_o_cuota : null,
+                    'base_cents' => (int) $t->base_cents,
+                    'importe_cents' => (int) $t->importe_cents,
+                    'nivel' => $t->nivel,
+                    'concepto_index' => $t->concepto_index,
+                ])->values()->all(),
+                'retenciones' => $report->cfdiRetenciones->map(fn ($r) => [
+                    'impuesto' => $r->impuesto,
+                    'impuesto_label' => $r->impuesto_label,
+                    'tipo_factor' => $r->tipo_factor,
+                    'tasa_o_cuota' => $r->tasa_o_cuota !== null ? (float) $r->tasa_o_cuota : null,
+                    'base_cents' => $r->base_cents !== null ? (int) $r->base_cents : null,
+                    'importe_cents' => (int) $r->importe_cents,
+                    'nivel' => $r->nivel,
+                    'concepto_index' => $r->concepto_index,
+                ])->values()->all(),
+                'impuestos_locales' => $report->cfdiImpuestosLocales->map(fn ($l) => [
+                    'clave' => $l->clave,
+                    'tipo' => $l->tipo,
+                    'tasa' => $l->tasa !== null ? (float) $l->tasa : null,
+                    'importe_cents' => (int) $l->importe_cents,
+                ])->values()->all(),
             ],
+        ])->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function toBalancePayload(ExpenseRequest $expenseRequest): array
+    {
+        $approved = (int) ($expenseRequest->approved_amount_cents ?? 0);
+        $reports = $expenseRequest->relationLoaded('expenseReports')
+            ? $expenseRequest->expenseReports
+            : $expenseRequest->expenseReports()->get();
+        $reported = (int) $reports->sum('reported_amount_cents');
+
+        $approvals = $expenseRequest->relationLoaded('approvals')
+            ? $expenseRequest->approvals
+            : $expenseRequest->approvals()->get();
+        $overCapPending = $approvals->contains(
+            fn ($a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === ExpenseRequestApprovalReason::OverCapExtension
+                && $a->status === ApprovalInstanceStatus::Pending,
+        );
+
+        return [
+            'approved_cents' => $approved,
+            'reported_cents' => $reported,
+            'remaining_cents' => $approved - $reported,
+            'over_cap' => $approved > 0 && $reported > $approved,
+            'over_cap_pending_extra_approval' => $overCapPending,
         ];
     }
 
@@ -636,7 +704,7 @@ class ExpenseRequestController extends Controller
      */
     private function toSettlementSummary(ExpenseRequest $expenseRequest): ?array
     {
-        $settlement = $expenseRequest->expenseReport?->settlement;
+        $settlement = $expenseRequest->settlement;
         if ($settlement === null) {
             return null;
         }

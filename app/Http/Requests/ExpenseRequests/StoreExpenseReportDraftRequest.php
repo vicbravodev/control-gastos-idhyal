@@ -29,6 +29,7 @@ class StoreExpenseReportDraftRequest extends FormRequest
             'document_type' => ['nullable', Rule::enum(ExpenseReportDocumentType::class)],
             'pdf' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
             'xml' => ['nullable', 'file', 'mimes:xml', 'max:10240'],
+            'label' => ['nullable', 'string', 'max:64'],
         ];
     }
 

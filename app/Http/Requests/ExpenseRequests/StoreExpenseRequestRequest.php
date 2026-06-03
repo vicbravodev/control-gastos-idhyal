@@ -4,6 +4,7 @@ namespace App\Http\Requests\ExpenseRequests;
 
 use App\Enums\DeliveryMethod;
 use App\Models\ExpenseRequest;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,8 +25,16 @@ class StoreExpenseRequestRequest extends FormRequest
         $mimes = config('expense_requests.submission_attachments_mime_extensions');
         $maxKb = (int) config('expense_requests.submission_attachments_max_kb');
 
+        /** @var User $user */
+        $user = $this->user();
+        $requiresStatePick = self::requiresStatePick($user);
+        $stateRule = $requiresStatePick
+            ? ['required', 'integer', Rule::exists('states', 'id')->where(fn ($q) => $q->where('region_id', $user->region_id))]
+            : ['nullable', 'integer', Rule::exists('states', 'id')];
+
         return [
             'requested_amount_cents' => ['required', 'integer', 'min:1'],
+            'state_id' => $stateRule,
             'expense_concept_id' => [
                 'required',
                 'integer',
@@ -36,6 +45,15 @@ class StoreExpenseRequestRequest extends FormRequest
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'mimes:'.$mimes, 'max:'.$maxKb],
         ];
+    }
+
+    /**
+     * A user must pick which state's budget the expense affects when they manage
+     * multiple states (region assigned, no fixed state).
+     */
+    public static function requiresStatePick(User $user): bool
+    {
+        return $user->region_id !== null && $user->state_id === null;
     }
 
     public function withValidator(Validator $validator): void
@@ -61,6 +79,8 @@ class StoreExpenseRequestRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'state_id.required' => __('Debes elegir el estado al que se cargará el gasto.'),
+            'state_id.exists' => __('El estado seleccionado no está disponible para tu región.'),
             'attachments.*.mimes' => __('Cada archivo debe ser PDF o imagen (JPG, PNG, WEBP).'),
             'attachments.*.max' => __('Cada archivo no debe superar :max kilobytes.', ['max' => (int) config('expense_requests.submission_attachments_max_kb')]),
         ];

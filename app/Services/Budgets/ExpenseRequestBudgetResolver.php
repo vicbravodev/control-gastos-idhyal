@@ -34,10 +34,12 @@ final class ExpenseRequestBudgetResolver
             return null;
         }
 
+        $effectiveStateId = $expenseRequest->state_id ?? $user->state_id;
+
         [$windowStart, $windowEnd] = $this->expenseWindow($expenseRequest);
 
         $query = Budget::query()
-            ->where(function (Builder $outer) use ($user): void {
+            ->where(function (Builder $outer) use ($user, $effectiveStateId): void {
                 $outer->where(function (Builder $q) use ($user): void {
                     $q->where('budgetable_type', 'user')
                         ->where('budgetable_id', $user->id);
@@ -50,10 +52,10 @@ final class ExpenseRequestBudgetResolver
                     });
                 }
 
-                if ($user->state_id !== null) {
-                    $outer->orWhere(function (Builder $q) use ($user): void {
+                if ($effectiveStateId !== null) {
+                    $outer->orWhere(function (Builder $q) use ($effectiveStateId): void {
                         $q->where('budgetable_type', 'state')
-                            ->where('budgetable_id', $user->state_id);
+                            ->where('budgetable_id', $effectiveStateId);
                     });
                 }
 

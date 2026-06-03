@@ -64,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
             'rejectApproval',
             'approve',
             'reject',
+            'rebuildWorkflow',
         ];
 
         Gate::before(function (?User $user, string $ability) use ($statusGated): ?bool {

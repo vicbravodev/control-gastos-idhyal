@@ -84,9 +84,11 @@ class PermissionSeeder extends Seeder
                 'admin.departments.manage' => 'Gestionar departamentos',
                 'admin.regions.manage' => 'Gestionar regiones',
                 'admin.states.manage' => 'Gestionar estados',
+                'admin.holidays.manage' => 'Gestionar días festivos',
             ],
             'reports' => [
                 'report.expenses.view' => 'Ver y descargar reporte de gastos',
+                'report.vacations.view' => 'Ver y descargar reporte de vacaciones',
             ],
             'system' => [
                 'system.bypass_all' => 'Bypass total de autorización (acceso completo)',

@@ -114,7 +114,10 @@ export default function RecordPaymentCard({
                     {form.data.payment_method === 'transfer' && (
                         <div className="grid gap-2">
                             <Label htmlFor="transfer_reference">
-                                Referencia de transferencia
+                                Referencia de transferencia{' '}
+                                <span className="text-muted-foreground text-xs">
+                                    (opcional)
+                                </span>
                             </Label>
                             <Input
                                 id="transfer_reference"
@@ -126,7 +129,6 @@ export default function RecordPaymentCard({
                                         ev.target.value,
                                     )
                                 }
-                                required
                             />
                             <InputError
                                 message={form.errors.transfer_reference}

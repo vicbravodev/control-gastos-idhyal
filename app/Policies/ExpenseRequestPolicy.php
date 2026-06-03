@@ -404,6 +404,15 @@ class ExpenseRequestPolicy
         return false;
     }
 
+    public function rebuildWorkflow(User $user, ExpenseRequest $expenseRequest): bool
+    {
+        if (! $user->hasPermission(User::PERMISSION_BYPASS_ALL)) {
+            return false;
+        }
+
+        return $expenseRequest->status === ExpenseRequestStatus::ApprovalInProgress;
+    }
+
     public function approveApproval(User $user, ExpenseRequestApproval $approval): bool
     {
         return $this->allowsActingOnPendingApproval($user, $approval);

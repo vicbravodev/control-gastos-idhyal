@@ -3,6 +3,7 @@
 namespace App\Services\ExpenseRequests;
 
 use App\Enums\ApprovalPolicyDocumentType;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Models\ExpenseRequest;
 use App\Models\Payment;
 use App\Models\Settlement;
@@ -12,6 +13,7 @@ use App\Notifications\ExpenseRequests\ExpenseReportRejectedNotification;
 use App\Notifications\ExpenseRequests\ExpenseReportSubmittedForReviewNotification;
 use App\Notifications\ExpenseRequests\ExpenseRequestApprovalProgressNotification;
 use App\Notifications\ExpenseRequests\ExpenseRequestFullyApprovedNotification;
+use App\Notifications\ExpenseRequests\ExpenseRequestOverCapExtensionRequestedNotification;
 use App\Notifications\ExpenseRequests\ExpenseRequestPaidNotification;
 use App\Notifications\ExpenseRequests\ExpenseRequestRejectedNotification;
 use App\Notifications\ExpenseRequests\ExpenseRequestSubmittedNotification;
@@ -67,6 +69,53 @@ final class ExpenseRequestNotificationDispatcher
 
         foreach ($approvers as $approver) {
             $approver->notify(new ExpenseRequestSubmittedNotification($expenseRequest));
+        }
+    }
+
+    public function notifyApproversOnOverCapRequested(ExpenseRequest $expenseRequest): void
+    {
+        $expenseRequest->loadMissing(['user', 'approvals']);
+
+        try {
+            $policy = $this->policyResolver->resolve(
+                ApprovalPolicyDocumentType::ExpenseRequest,
+                $expenseRequest->user,
+            );
+        } catch (NoActiveApprovalPolicyException) {
+            return;
+        }
+
+        $orderedSteps = $policy->steps->sortBy('step_order')->values();
+        $groups = ApprovalStepGrouper::stepOrderGroups($orderedSteps);
+        if ($groups === []) {
+            return;
+        }
+
+        $overCapApprovals = $expenseRequest->approvals
+            ->filter(fn ($a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === ExpenseRequestApprovalReason::OverCapExtension);
+        if ($overCapApprovals->isEmpty()) {
+            return;
+        }
+
+        $offset = (int) $overCapApprovals->min('step_order') - (int) ($orderedSteps->first()?->step_order ?? 0);
+        $firstGroupVirtualOrders = $groups[0];
+
+        $approvalsInFirstGroup = $overCapApprovals
+            ->filter(fn ($a) => in_array($a->step_order - $offset, $firstGroupVirtualOrders, true));
+
+        $approverResolver = app(ResolveApproversForStep::class);
+
+        $approvers = collect();
+        foreach ($approvalsInFirstGroup as $approval) {
+            $approvers = $approvers->merge($approverResolver->resolveForApproval($approval));
+        }
+
+        $approvers = $approvers->unique('id')
+            ->reject(fn (User $u): bool => $u->id === $expenseRequest->user_id)
+            ->values();
+
+        foreach ($approvers as $approver) {
+            $approver->notify(new ExpenseRequestOverCapExtensionRequestedNotification($expenseRequest));
         }
     }
 

@@ -22,6 +22,7 @@ class ExpenseRequest extends Model
      */
     protected $fillable = [
         'user_id',
+        'state_id',
         'status',
         'folio',
         'requested_amount_cents',
@@ -50,6 +51,14 @@ class ExpenseRequest extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<State, $this>
+     */
+    public function state(): BelongsTo
+    {
+        return $this->belongsTo(State::class);
     }
 
     /**

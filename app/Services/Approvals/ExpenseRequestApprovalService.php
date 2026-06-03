@@ -174,23 +174,80 @@ class ExpenseRequestApprovalService
         });
     }
 
+    /**
+     * Discards any pending initial-chain approvals and rebuilds them against the
+     * currently-active approval policy. Use when a policy change leaves an
+     * in-flight request with a chain that no longer matches.
+     *
+     * @throws InvalidApprovalStateException
+     * @throws NoActiveApprovalPolicyException
+     */
+    public function rebuildWorkflow(ExpenseRequest $expenseRequest, User $actor): void
+    {
+        DB::transaction(function () use ($expenseRequest, $actor): void {
+            $expenseRequest->refresh();
+            $expenseRequest->load('approvals');
+
+            if ($expenseRequest->status !== ExpenseRequestStatus::ApprovalInProgress) {
+                throw new InvalidApprovalStateException('Only requests in approval can have their chain rebuilt.');
+            }
+
+            $requester = $expenseRequest->user;
+            $policy = $this->resolver->resolve(ApprovalPolicyDocumentType::ExpenseRequest, $requester);
+
+            $expenseRequest->approvals()
+                ->where('reason', ExpenseRequestApprovalReason::Initial)
+                ->delete();
+
+            foreach ($policy->steps->sortBy('step_order') as $step) {
+                ExpenseRequestApproval::query()->create([
+                    'expense_request_id' => $expenseRequest->id,
+                    'step_order' => $step->step_order,
+                    'approver_type' => $step->approver_type,
+                    'approver_id' => $step->approver_id,
+                    'reason' => ExpenseRequestApprovalReason::Initial,
+                    'status' => ApprovalInstanceStatus::Pending,
+                ]);
+            }
+
+            DocumentEvent::query()->create([
+                'subject_type' => $expenseRequest->getMorphClass(),
+                'subject_id' => $expenseRequest->getKey(),
+                'event_type' => DocumentEventType::ExpenseRequestApprovalChainRebuilt,
+                'actor_user_id' => $actor->id,
+                'note' => 'Cadena de aprobación rearmada con la política vigente.',
+                'metadata' => [
+                    'approval_policy_id' => $policy->id,
+                ],
+            ]);
+        });
+
+        $notifications = $this->notifications;
+        DB::afterCommit(function () use ($expenseRequest, $notifications): void {
+            $fresh = $expenseRequest->fresh(['user', 'approvals']);
+            if ($fresh !== null) {
+                $notifications->notifyApproversOnSubmitted($fresh);
+            }
+        });
+    }
+
     public function requestOverCapExtension(ExpenseRequest $expenseRequest): void
     {
-        DB::transaction(function () use ($expenseRequest): void {
+        $created = DB::transaction(function () use ($expenseRequest): bool {
             $expenseRequest->refresh();
             $expenseRequest->load('approvals');
 
             $existing = $expenseRequest->approvals
                 ->first(fn (ExpenseRequestApproval $a) => ($a->reason ?? ExpenseRequestApprovalReason::Initial) === ExpenseRequestApprovalReason::OverCapExtension);
             if ($existing !== null) {
-                return;
+                return false;
             }
 
             $requester = $expenseRequest->user;
             try {
                 $policy = $this->resolver->resolve(ApprovalPolicyDocumentType::ExpenseRequest, $requester);
             } catch (NoActiveApprovalPolicyException) {
-                return;
+                return false;
             }
 
             $maxStepOrder = (int) ($expenseRequest->approvals->max('step_order') ?? 0);
@@ -204,6 +261,20 @@ class ExpenseRequestApprovalService
                     'reason' => ExpenseRequestApprovalReason::OverCapExtension,
                     'status' => ApprovalInstanceStatus::Pending,
                 ]);
+            }
+
+            return true;
+        });
+
+        if (! $created) {
+            return;
+        }
+
+        $notifications = $this->notifications;
+        DB::afterCommit(function () use ($expenseRequest, $notifications): void {
+            $fresh = $expenseRequest->fresh(['user', 'approvals']);
+            if ($fresh !== null) {
+                $notifications->notifyApproversOnOverCapRequested($fresh);
             }
         });
     }

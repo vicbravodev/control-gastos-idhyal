@@ -17,6 +17,7 @@ use App\Models\DocumentEvent;
 use App\Models\ExpenseConcept;
 use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
+use App\Models\State;
 use App\Models\User;
 use App\Services\Approvals\Exceptions\InvalidApprovalStateException;
 use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
@@ -80,12 +81,23 @@ class ExpenseRequestController extends Controller
     {
         $this->authorize('create', ExpenseRequest::class);
 
+        /** @var User $user */
+        $user = request()->user();
+        $requiresStatePick = StoreExpenseRequestRequest::requiresStatePick($user);
+
         return Inertia::render('expense-requests/create', [
             'expenseConcepts' => ExpenseConcept::query()
                 ->active()
                 ->orderBy('sort_order')
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'availableStates' => $requiresStatePick
+                ? State::query()
+                    ->where('region_id', $user->region_id)
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : [],
+            'requiresStatePick' => $requiresStatePick,
         ]);
     }
 
@@ -141,6 +153,7 @@ class ExpenseRequestController extends Controller
             $expenseRequest = DB::transaction(function () use ($request, $folioGenerator, $approvalService, $submissionAttachments): ExpenseRequest {
                 $expenseRequest = ExpenseRequest::query()->create([
                     'user_id' => $request->user()->id,
+                    'state_id' => $request->filled('state_id') ? $request->integer('state_id') : null,
                     'status' => ExpenseRequestStatus::Submitted,
                     'folio' => null,
                     'requested_amount_cents' => $request->integer('requested_amount_cents'),
@@ -275,6 +288,7 @@ class ExpenseRequestController extends Controller
             'canCloseSettlement' => $user?->can('closeSettlement', $expenseRequest) ?? false,
             'canCancel' => $user?->can('cancel', $expenseRequest) ?? false,
             'canAddSubmissionAttachments' => $user?->can('addSubmissionAttachments', $expenseRequest) ?? false,
+            'canRebuildWorkflow' => $user?->can('rebuildWorkflow', $expenseRequest) ?? false,
             'activeApprovalId' => $user instanceof User
                 ? $this->activeApprovalIdForUser($expenseRequest, $user, $approvalService)
                 : null,

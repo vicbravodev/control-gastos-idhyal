@@ -35,7 +35,7 @@ class StoreExpenseRequestPaymentRequest extends FormRequest
             ],
             'payment_method' => ['required', 'string', Rule::enum(PaymentMethod::class)],
             'paid_on' => ['required', 'date'],
-            'transfer_reference' => ['nullable', 'required_if:payment_method,transfer', 'string', 'max:255'],
+            'transfer_reference' => ['nullable', 'string', 'max:255'],
             'evidence' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
         ];
     }

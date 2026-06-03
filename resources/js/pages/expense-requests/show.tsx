@@ -186,6 +186,7 @@ export default function ExpenseRequestsShow({
     canCloseSettlement,
     canCancel,
     canAddSubmissionAttachments,
+    canRebuildWorkflow = false,
     activeApprovalId,
 }: {
     expenseRequest: Detail;
@@ -206,6 +207,7 @@ export default function ExpenseRequestsShow({
     canCloseSettlement: boolean;
     canCancel: boolean;
     canAddSubmissionAttachments: boolean;
+    canRebuildWorkflow?: boolean;
     activeApprovalId: number | null;
 }) {
     const { flash } = usePage<{ flash?: { status?: string } }>().props;
@@ -475,6 +477,11 @@ export default function ExpenseRequestsShow({
                         >
                             <div className="px-5 py-5">
                                 <ApprovalTimeline steps={approvalSteps} />
+                                {canRebuildWorkflow && (
+                                    <RebuildWorkflowAction
+                                        expenseRequestId={expenseRequest.id}
+                                    />
+                                )}
                             </div>
                         </CardSection>
 
@@ -651,6 +658,71 @@ function HeaderActions({
                     expenseRequestId={expenseRequestId}
                 />
             )}
+        </>
+    );
+}
+
+function RebuildWorkflowAction({
+    expenseRequestId,
+}: {
+    expenseRequestId: number;
+}) {
+    const [open, setOpen] = useState(false);
+    const form = useForm({});
+
+    return (
+        <>
+            <div className="mt-4 border-t border-border pt-4">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setOpen(true)}
+                >
+                    Rearmar cadena con política vigente
+                </Button>
+                <p className="mt-2 text-xs text-muted-foreground">
+                    Úsalo solo si la cadena quedó desactualizada por un cambio
+                    en la política de aprobación.
+                </p>
+            </div>
+
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent>
+                    <DialogTitle>
+                        ¿Rearmar la cadena de aprobación?
+                    </DialogTitle>
+                    <DialogDescription>
+                        Se eliminarán los pasos pendientes y aprobados de la
+                        cadena inicial, y se generará una nueva cadena usando
+                        la política activa actual. Esta acción se registra en
+                        el historial de la solicitud.
+                    </DialogDescription>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="secondary">No, volver</Button>
+                        </DialogClose>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={form.processing}
+                            onClick={() => {
+                                form.post(
+                                    `/expense-requests/${expenseRequestId}/approvals/rebuild-workflow`,
+                                    {
+                                        preserveScroll: true,
+                                        onSuccess: () => setOpen(false),
+                                    },
+                                );
+                            }}
+                        >
+                            {form.processing
+                                ? 'Procesando…'
+                                : 'Sí, rearmar cadena'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

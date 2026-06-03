@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Budget;
 use App\Models\ExpenseRequest;
 use App\Models\Region;
+use App\Models\State;
 use App\Models\User;
 use App\Services\Budgets\ExpenseRequestBudgetResolver;
 use Database\Seeders\RoleSeeder;
@@ -21,6 +22,49 @@ class ExpenseRequestBudgetResolverTest extends TestCase
             'period_starts_on' => now()->subYear()->toDateString(),
             'period_ends_on' => now()->addYear()->toDateString(),
         ];
+    }
+
+    public function test_request_state_id_overrides_user_state_id_for_budget_lookup(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $region = Region::query()->create(['code' => 'RMS', 'name' => 'Región MS']);
+        $stateA = State::query()->create(['code' => 'SA', 'name' => 'Estado A', 'region_id' => $region->id]);
+        $stateB = State::query()->create(['code' => 'SB', 'name' => 'Estado B', 'region_id' => $region->id]);
+
+        // Coord regional: tiene region pero NO state_id
+        $user = User::factory()->forRole('coord_regional')->create([
+            'region_id' => $region->id,
+            'state_id' => null,
+        ]);
+
+        $budgetA = Budget::factory()->forBudgetable('state', $stateA->id)->create([
+            ...$this->widePeriod(),
+            'amount_limit_cents' => 50_000_000,
+            'priority' => 10,
+        ]);
+
+        $budgetB = Budget::factory()->forBudgetable('state', $stateB->id)->create([
+            ...$this->widePeriod(),
+            'amount_limit_cents' => 50_000_000,
+            'priority' => 10,
+        ]);
+
+        $expenseToA = ExpenseRequest::factory()->create([
+            'user_id' => $user->id,
+            'state_id' => $stateA->id,
+        ]);
+
+        $expenseToB = ExpenseRequest::factory()->create([
+            'user_id' => $user->id,
+            'state_id' => $stateB->id,
+        ]);
+
+        $resolvedA = app(ExpenseRequestBudgetResolver::class)->resolve($expenseToA);
+        $resolvedB = app(ExpenseRequestBudgetResolver::class)->resolve($expenseToB);
+
+        $this->assertSame($budgetA->id, $resolvedA?->id);
+        $this->assertSame($budgetB->id, $resolvedB?->id);
     }
 
     public function test_higher_priority_budget_wins(): void

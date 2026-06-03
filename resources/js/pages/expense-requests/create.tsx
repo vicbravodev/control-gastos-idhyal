@@ -21,6 +21,7 @@ import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
 type ConceptOption = { id: number; name: string };
+type StateOption = { id: number; name: string };
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
@@ -36,8 +37,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function ExpenseRequestsCreate({
     expenseConcepts = [],
+    availableStates = [],
+    requiresStatePick = false,
 }: {
     expenseConcepts?: ConceptOption[];
+    availableStates?: StateOption[];
+    requiresStatePick?: boolean;
 }) {
     const defaultConceptId =
         expenseConcepts[0]?.id !== undefined
@@ -173,6 +178,46 @@ export default function ExpenseRequestsCreate({
                                             message={errors.delivery_method}
                                         />
                                     </div>
+                                    {requiresStatePick &&
+                                        availableStates.length > 0 && (
+                                            <div className="grid gap-2 sm:col-span-2">
+                                                <Label htmlFor="state_id">
+                                                    Estado al que se carga el
+                                                    gasto
+                                                </Label>
+                                                <Select
+                                                    name="state_id"
+                                                    required
+                                                >
+                                                    <SelectTrigger id="state_id">
+                                                        <SelectValue placeholder="Selecciona el estado" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableStates.map(
+                                                            (s) => (
+                                                                <SelectItem
+                                                                    key={s.id}
+                                                                    value={String(
+                                                                        s.id,
+                                                                    )}
+                                                                >
+                                                                    {s.name}
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Coordinas varios estados.
+                                                    Elige a cuál presupuesto
+                                                    estatal afecta esta
+                                                    solicitud.
+                                                </p>
+                                                <InputError
+                                                    message={errors.state_id}
+                                                />
+                                            </div>
+                                        )}
                                 </div>
                             </section>
 

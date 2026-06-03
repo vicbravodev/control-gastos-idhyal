@@ -31,7 +31,7 @@ function Calendar({
                 dropdown_root:
                     'relative inline-flex items-center rounded-md border border-input bg-background px-2.5 py-1 text-sm font-medium capitalize transition-colors hover:bg-accent hover:text-accent-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
                 dropdown:
-                    'absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none bg-transparent text-transparent opacity-0',
+                    'absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none bg-transparent text-transparent opacity-0 [&>option]:text-foreground [&>option]:bg-background',
                 months_dropdown: '',
                 years_dropdown: '',
                 nav: 'flex items-center justify-between absolute inset-x-0 px-1',

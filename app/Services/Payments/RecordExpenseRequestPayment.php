@@ -49,10 +49,6 @@ final class RecordExpenseRequestPayment
             throw new InvalidExpenseRequestPaymentException(__('El monto debe coincidir con el monto aprobado.'));
         }
 
-        if ($paymentMethod === PaymentMethod::Transfer && ($transferReference === null || $transferReference === '')) {
-            throw new InvalidExpenseRequestPaymentException(__('La referencia de transferencia es obligatoria.'));
-        }
-
         $payment = DB::transaction(function () use (
             $expenseRequest,
             $actor,

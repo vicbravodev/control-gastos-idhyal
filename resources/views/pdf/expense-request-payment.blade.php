@@ -56,4 +56,55 @@
             <td class="value">{{ $payment->recordedBy->name }}</td>
         </tr>
     </table>
+
+    @if(count($cfdiSummaries) > 0)
+        @php
+            $sumSubtotal = array_sum(array_column($cfdiSummaries, 'subtotal_cents'));
+            $sumTraslados = array_sum(array_column($cfdiSummaries, 'traslados_cents'));
+            $sumRetenciones = array_sum(array_column($cfdiSummaries, 'retenciones_cents'));
+            $sumLocales = array_sum(array_column($cfdiSummaries, 'locales_cents'));
+            $sumTotal = array_sum(array_column($cfdiSummaries, 'total_cents'));
+        @endphp
+
+        <h3 class="section-title">Comprobantes fiscales (CFDI)</h3>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Folio</th>
+                    <th>Emisor</th>
+                    <th>Fecha</th>
+                    <th style="text-align: right;">Subtotal</th>
+                    <th style="text-align: right;">IVA / Traslados</th>
+                    <th style="text-align: right;">Retenciones</th>
+                    <th style="text-align: right;">Imp. locales</th>
+                    <th style="text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($cfdiSummaries as $s)
+                    <tr>
+                        <td>{{ $s['folio'] }}</td>
+                        <td>{{ $s['emisor'] }}</td>
+                        <td>{{ $s['fecha'] ?? '—' }}</td>
+                        <td style="text-align: right;">${{ number_format($s['subtotal_cents'] / 100, 2) }}</td>
+                        <td style="text-align: right;">${{ number_format($s['traslados_cents'] / 100, 2) }}</td>
+                        <td style="text-align: right;">${{ number_format($s['retenciones_cents'] / 100, 2) }}</td>
+                        <td style="text-align: right;">${{ number_format($s['locales_cents'] / 100, 2) }}</td>
+                        <td style="text-align: right; font-weight: bold;">${{ number_format($s['total_cents'] / 100, 2) }}</td>
+                    </tr>
+                @endforeach
+                @if(count($cfdiSummaries) > 1)
+                    <tr style="background-color: #f0f4fb;">
+                        <td colspan="3" style="font-weight: bold; color: #1a3a73;">TOTAL GENERAL</td>
+                        <td style="text-align: right; font-weight: bold;">${{ number_format($sumSubtotal / 100, 2) }}</td>
+                        <td style="text-align: right; font-weight: bold;">${{ number_format($sumTraslados / 100, 2) }}</td>
+                        <td style="text-align: right; font-weight: bold;">${{ number_format($sumRetenciones / 100, 2) }}</td>
+                        <td style="text-align: right; font-weight: bold;">${{ number_format($sumLocales / 100, 2) }}</td>
+                        <td style="text-align: right; font-weight: bold; color: #1a3a73;">${{ number_format($sumTotal / 100, 2) }}</td>
+                    </tr>
+                @endif
+            </tbody>
+        </table>
+    @endif
 @endsection

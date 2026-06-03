@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 
 export type VacationBalancePayload = {
     has_hire_date: boolean;
+    hire_date: string | null;
     service_years: number | null;
     calendar_year: number;
     rule: {
@@ -138,6 +139,14 @@ export function VacationBalanceCard({
                                 </>
                             )}
                         </p>
+                        {balance.hire_date && (
+                            <p className="text-xs text-muted-foreground">
+                                Fecha de ingreso:{' '}
+                                <span className="font-medium text-foreground">
+                                    {formatLongDate(balance.hire_date)}
+                                </span>
+                            </p>
+                        )}
                         <dl className="grid max-w-md grid-cols-2 gap-x-4 gap-y-1 text-sm">
                             <dt className="text-muted-foreground">
                                 Asignados

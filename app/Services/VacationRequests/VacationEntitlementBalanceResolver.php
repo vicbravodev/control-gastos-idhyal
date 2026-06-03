@@ -75,6 +75,7 @@ class VacationEntitlementBalanceResolver
 
         return [
             'has_hire_date' => true,
+            'hire_date' => $hire->toDateString(),
             'service_years' => round($years, 2),
             'calendar_year' => $calendarYear,
             'rule' => [
@@ -143,6 +144,7 @@ class VacationEntitlementBalanceResolver
     {
         return [
             'has_hire_date' => false,
+            'hire_date' => null,
             'service_years' => null,
             'calendar_year' => $calendarYear,
             'rule' => null,
@@ -175,6 +177,7 @@ class VacationEntitlementBalanceResolver
 
         return [
             'has_hire_date' => true,
+            'hire_date' => $hire->toDateString(),
             'service_years' => round($years, 2),
             'calendar_year' => $calendarYear,
             'rule' => null,

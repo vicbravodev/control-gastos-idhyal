@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarDays,
+    CalendarOff,
     ClipboardList,
     FileBarChart,
     FileSearch,
@@ -21,6 +22,8 @@ import {
 } from 'lucide-react';
 import { useMemo } from 'react';
 import DepartmentController from '@/actions/App/Http/Controllers/Admin/DepartmentController';
+import HolidayController from '@/actions/App/Http/Controllers/Admin/HolidayController';
+import VacationReportController from '@/actions/App/Http/Controllers/Admin/VacationReportController';
 import RegionController from '@/actions/App/Http/Controllers/Admin/RegionController';
 import RoleController from '@/actions/App/Http/Controllers/Admin/RoleController';
 import StaffUserController from '@/actions/App/Http/Controllers/Admin/StaffUserController';
@@ -132,6 +135,14 @@ export function AppSidebar() {
             });
         }
 
+        if (has('report.vacations.view')) {
+            reportes.push({
+                title: 'Reporte de vacaciones',
+                href: VacationReportController.index.url(),
+                icon: Palmtree,
+            });
+        }
+
         const administracion: NavItem[] = [];
 
         if (has('budget.manage') || has('budget.view_any')) {
@@ -203,6 +214,14 @@ export function AppSidebar() {
                 title: 'Estados',
                 href: StateController.index.url(),
                 icon: Map,
+            });
+        }
+
+        if (has('admin.holidays.manage')) {
+            administracion.push({
+                title: 'Días festivos',
+                href: HolidayController.index.url(),
+                icon: CalendarOff,
             });
         }
 

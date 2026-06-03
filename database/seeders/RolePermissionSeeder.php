@@ -85,6 +85,8 @@ class RolePermissionSeeder extends Seeder
                 'approval_policy.manage',
                 'admin.users.view',
                 'admin.users.manage',
+                'admin.holidays.manage',
+                'report.vacations.view',
             ],
             'contabilidad' => [
                 'expense_request.view_any',

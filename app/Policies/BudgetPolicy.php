@@ -24,12 +24,17 @@ class BudgetPolicy
 
     public function update(User $user, Budget $budget): bool
     {
-        return $user->hasPermission('budget.manage');
+        return $budget->isActive() && $user->hasPermission('budget.manage');
+    }
+
+    public function cancel(User $user, Budget $budget): bool
+    {
+        return $budget->isActive() && $user->hasPermission('budget.manage');
     }
 
     public function delete(User $user, Budget $budget): bool
     {
-        return $user->hasPermission('budget.manage');
+        return false;
     }
 
     public function restore(User $user, Budget $budget): bool

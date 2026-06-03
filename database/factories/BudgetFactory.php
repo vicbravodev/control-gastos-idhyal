@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\BudgetStatus;
 use App\Models\Budget;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -28,6 +29,7 @@ class BudgetFactory extends Factory
             'period_ends_on' => $end,
             'amount_limit_cents' => 10_000_000,
             'priority' => 1,
+            'status' => BudgetStatus::Active,
         ];
     }
 
@@ -36,6 +38,15 @@ class BudgetFactory extends Factory
         return $this->state(fn (): array => [
             'budgetable_type' => $morphType,
             'budgetable_id' => $id,
+        ]);
+    }
+
+    public function cancelled(?string $reason = null): static
+    {
+        return $this->state(fn (): array => [
+            'status' => BudgetStatus::Cancelled,
+            'cancelled_at' => now(),
+            'cancellation_reason' => $reason ?? 'Cancelado en pruebas.',
         ]);
     }
 }

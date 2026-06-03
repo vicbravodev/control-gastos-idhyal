@@ -32,7 +32,6 @@ class ExpenseReportVerificationHttpTest extends TestCase
         $accounting = User::factory()->forRole('contabilidad')->create();
 
         $expenseRequestStatus = match ($reportStatus) {
-            ExpenseReportStatus::Draft => ExpenseRequestStatus::AwaitingExpenseReport,
             ExpenseReportStatus::AccountingReview => ExpenseRequestStatus::ExpenseReportInReview,
             ExpenseReportStatus::Rejected => ExpenseRequestStatus::ExpenseReportRejected,
             ExpenseReportStatus::Approved => ExpenseRequestStatus::SettlementPending,
@@ -55,7 +54,7 @@ class ExpenseReportVerificationHttpTest extends TestCase
             'expense_request_id' => $expenseRequest->id,
             'status' => $reportStatus,
             'reported_amount_cents' => 48_000,
-            'submitted_at' => $reportStatus === ExpenseReportStatus::Draft ? null : now(),
+            'submitted_at' => now(),
         ]);
 
         if ($reportStatus === ExpenseReportStatus::Approved) {
@@ -147,30 +146,6 @@ class ExpenseReportVerificationHttpTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_accounting_cannot_download_draft_verification_files_even_when_viewing_request(): void
-    {
-        [, $accounting, $expenseRequest, , $pdfAttachment] = $this->expenseRequestWithVerificationAttachments(ExpenseReportStatus::Draft);
-
-        $this->actingAs($accounting)
-            ->get(route('expense-requests.expense-reports.verification-attachment', [
-                'expense_request' => $expenseRequest,
-                'attachment' => $pdfAttachment,
-            ]))
-            ->assertForbidden();
-    }
-
-    public function test_owner_can_download_draft_verification_pdf(): void
-    {
-        [$owner, , $expenseRequest, , $pdfAttachment] = $this->expenseRequestWithVerificationAttachments(ExpenseReportStatus::Draft);
-
-        $this->actingAs($owner)
-            ->get(route('expense-requests.expense-reports.verification-attachment', [
-                'expense_request' => $expenseRequest,
-                'attachment' => $pdfAttachment,
-            ]))
-            ->assertOk();
-    }
-
     public function test_receipt_pdf_available_when_accounting_review(): void
     {
         [$owner, , $expenseRequestInReview] = $this->expenseRequestWithVerificationAttachments(ExpenseReportStatus::AccountingReview);
@@ -191,17 +166,6 @@ class ExpenseReportVerificationHttpTest extends TestCase
                 'expense_request' => $expenseRequestApproved,
             ]))
             ->assertOk();
-    }
-
-    public function test_receipt_pdf_forbidden_when_report_is_draft(): void
-    {
-        [$owner, , $expenseRequest] = $this->expenseRequestWithVerificationAttachments(ExpenseReportStatus::Draft);
-
-        $this->actingAs($owner)
-            ->get(route('expense-requests.receipts.expense-report-verification', [
-                'expense_request' => $expenseRequest,
-            ]))
-            ->assertForbidden();
     }
 
     public function test_receipt_pdf_forbidden_when_report_is_rejected(): void

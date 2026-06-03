@@ -38,10 +38,7 @@ class ExpenseReportPolicy
             return false;
         }
 
-        return in_array($expenseReport->status, [
-            ExpenseReportStatus::Draft,
-            ExpenseReportStatus::Rejected,
-        ], true);
+        return $expenseReport->status === ExpenseReportStatus::Rejected;
     }
 
     public function validateReceipt(User $user, ExpenseReport $expenseReport): bool

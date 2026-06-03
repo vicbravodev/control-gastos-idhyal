@@ -461,29 +461,20 @@ class ExpenseRequestAuthorizationTest extends TestCase
         $this->assertTrue($admin->can('downloadSubmissionReceipt', $expenseRequest));
     }
 
-    public function test_download_expense_report_verification_receipt_only_when_submitted_or_approved(): void
+    public function test_download_expense_report_verification_receipt_when_in_review(): void
     {
         $this->seed(RoleSeeder::class);
         $owner = User::factory()->create();
         $accounting = User::factory()->forRole('contabilidad')->create();
         $expenseRequest = ExpenseRequest::factory()->create([
             'user_id' => $owner->id,
-            'status' => ExpenseRequestStatus::AwaitingExpenseReport,
+            'status' => ExpenseRequestStatus::ExpenseReportInReview,
         ]);
-        $reportDraft = ExpenseReport::factory()->create([
-            'expense_request_id' => $expenseRequest->id,
-            'status' => ExpenseReportStatus::Draft,
-        ]);
-
-        $this->assertFalse($owner->can('downloadExpenseReportVerificationReceipt', $expenseRequest));
-
-        $reportDraft->delete();
         ExpenseReport::factory()->create([
             'expense_request_id' => $expenseRequest->id,
             'status' => ExpenseReportStatus::AccountingReview,
             'submitted_at' => now(),
         ]);
-        $expenseRequest->update(['status' => ExpenseRequestStatus::ExpenseReportInReview]);
 
         $this->assertTrue($owner->can('downloadExpenseReportVerificationReceipt', $expenseRequest->fresh()));
         $this->assertTrue($accounting->can('downloadExpenseReportVerificationReceipt', $expenseRequest->fresh()));

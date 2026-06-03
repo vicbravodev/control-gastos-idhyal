@@ -20,13 +20,13 @@ class ExpenseReportFactory extends Factory
     {
         return [
             'expense_request_id' => ExpenseRequest::factory(),
-            'status' => ExpenseReportStatus::Draft,
+            'status' => ExpenseReportStatus::AccountingReview,
             'reported_amount_cents' => fake()->randomElement([10_000, 50_000, 100_000]),
             'document_type' => ExpenseReportDocumentType::Factura,
             'label' => null,
             'reviewer_user_id' => null,
             'reviewed_at' => null,
-            'submitted_at' => null,
+            'submitted_at' => now(),
         ];
     }
 }

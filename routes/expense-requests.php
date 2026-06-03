@@ -12,9 +12,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         ->name('expense-requests.expense-reports.pending-review');
 
     // Scoped per-receipt endpoints.
-    Route::patch('expense-requests/{expenseRequest}/expense-reports/{expenseReport}', [ExpenseReportController::class, 'storeDraft'])
-        ->name('expense-requests.expense-reports.update');
-
     Route::post('expense-requests/{expenseRequest}/expense-reports/{expenseReport}/submit', [ExpenseReportController::class, 'submit'])
         ->name('expense-requests.expense-reports.submit');
 
@@ -24,17 +21,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('expense-requests/{expenseRequest}/expense-reports/{expenseReport}/reject', [ExpenseReportController::class, 'reject'])
         ->name('expense-requests.expense-reports.reject');
 
-    // "Add a new receipt" — POST without id creates a new receipt and saves draft/submits in one call.
-    Route::post('expense-requests/{expenseRequest}/expense-reports/draft', [ExpenseReportController::class, 'storeDraft'])
-        ->name('expense-requests.expense-reports.draft');
-
+    // "Add a new receipt" — POST without id creates a new receipt and submits in one call.
     Route::post('expense-requests/{expenseRequest}/expense-reports', [ExpenseReportController::class, 'submit'])
         ->name('expense-requests.expense-reports.store');
 
     // Backward-compat aliases used by older clients/tests.
-    Route::post('expense-requests/{expenseRequest}/expense-report/draft', [ExpenseReportController::class, 'storeDraft'])
-        ->name('expense-requests.expense-report.draft');
-
     Route::post('expense-requests/{expenseRequest}/expense-report/submit', [ExpenseReportController::class, 'submit'])
         ->name('expense-requests.expense-report.submit');
 

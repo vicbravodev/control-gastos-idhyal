@@ -281,7 +281,6 @@ class ExpenseRequestController extends Controller
             'canDownloadPaymentEvidence' => $paymentEvidenceAttachment !== null
                 && ($user?->can('downloadPaymentEvidence', [$expenseRequest, $paymentEvidenceAttachment]) ?? false),
             'canRecordPayment' => $user?->can('recordPayment', $expenseRequest) ?? false,
-            'canSaveExpenseReportDraft' => $user?->can('saveExpenseReportDraft', $expenseRequest) ?? false,
             'canSubmitExpenseReport' => $user?->can('submitExpenseReport', $expenseRequest) ?? false,
             'canReviewExpenseReport' => $user?->can('reviewExpenseReport', $expenseRequest) ?? false,
             'canRecordSettlementLiquidation' => $user?->can('recordSettlementLiquidation', $expenseRequest) ?? false,

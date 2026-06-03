@@ -7,8 +7,6 @@ namespace App\Enums;
  */
 enum VacationRequestStatus: string
 {
-    case Draft = 'draft';
-
     case Submitted = 'submitted';
 
     case ApprovalInProgress = 'approval_in_progress';
@@ -26,7 +24,6 @@ enum VacationRequestStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Draft => 'Borrador',
             self::Submitted => 'Enviada',
             self::ApprovalInProgress => 'En aprobación',
             self::Rejected => 'Rechazada',

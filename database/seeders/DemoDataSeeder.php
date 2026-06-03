@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\ApprovalApproverType;
 use App\Enums\ApprovalInstanceStatus;
 use App\Enums\BudgetLedgerEntryType;
+use App\Enums\BudgetStatus;
 use App\Enums\DeliveryMethod;
 use App\Enums\DocumentEventType;
 use App\Enums\ExpenseReportDocumentType;
@@ -36,6 +37,7 @@ use App\Models\VacationEntitlementAdjustment;
 use App\Models\VacationRequest;
 use App\Models\VacationRequestApproval;
 use App\Models\VacationRule;
+use App\Services\Budgets\BudgetAuditor;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -407,26 +409,89 @@ class DemoDataSeeder extends Seeder
     {
         $start = now()->startOfYear()->toDateString();
         $end = now()->endOfYear()->toDateString();
+        $auditor = app(BudgetAuditor::class);
+        $accounting = $this->users['contabilidad'] ?? null;
 
-        Budget::query()->updateOrCreate(
-            ['budgetable_type' => 'region', 'budgetable_id' => $this->regionNorte->id, 'period_starts_on' => $start],
-            ['period_ends_on' => $end, 'amount_limit_cents' => 50_000_000, 'priority' => 1],
-        );
+        $definitions = [
+            ['region', $this->regionNorte->id, 50_000_000, 1],
+            ['region', $this->regionSur->id, 30_000_000, 1],
+            ['state', $this->stateNL->id, 20_000_000, 2],
+            ['state', $this->stateOax->id, 15_000_000, 2],
+        ];
 
-        Budget::query()->updateOrCreate(
-            ['budgetable_type' => 'region', 'budgetable_id' => $this->regionSur->id, 'period_starts_on' => $start],
-            ['period_ends_on' => $end, 'amount_limit_cents' => 30_000_000, 'priority' => 1],
-        );
+        foreach ($definitions as [$type, $id, $amount, $priority]) {
+            /** @var Budget $budget */
+            [$budget, $created] = $this->upsertBudgetForDemo($type, $id, $start, $end, $amount, $priority);
+            if ($created) {
+                $auditor->recordCreated($budget, $accounting);
+            }
+        }
 
-        Budget::query()->updateOrCreate(
-            ['budgetable_type' => 'state', 'budgetable_id' => $this->stateNL->id, 'period_starts_on' => $start],
-            ['period_ends_on' => $end, 'amount_limit_cents' => 20_000_000, 'priority' => 2],
+        $previousYearStart = now()->subYear()->startOfYear()->toDateString();
+        $previousYearEnd = now()->subYear()->endOfYear()->toDateString();
+        [$cancelled, $createdCancelled] = $this->upsertBudgetForDemo(
+            'state',
+            $this->stateNL->id,
+            $previousYearStart,
+            $previousYearEnd,
+            8_000_000,
+            2,
         );
+        if ($createdCancelled) {
+            $auditor->recordCreated($cancelled, $accounting);
+            $cancelled->update([
+                'status' => BudgetStatus::Cancelled,
+                'cancelled_at' => now()->subMonths(3),
+                'cancelled_by' => $accounting?->id,
+                'cancellation_reason' => 'Cierre del ejercicio anterior.',
+            ]);
+            $auditor->recordStatusChanged(
+                $cancelled,
+                BudgetStatus::Active,
+                BudgetStatus::Cancelled,
+                'Cierre del ejercicio anterior.',
+                $accounting,
+            );
+        }
+    }
 
-        Budget::query()->updateOrCreate(
-            ['budgetable_type' => 'state', 'budgetable_id' => $this->stateOax->id, 'period_starts_on' => $start],
-            ['period_ends_on' => $end, 'amount_limit_cents' => 15_000_000, 'priority' => 2],
-        );
+    /**
+     * @return array{0: Budget, 1: bool}
+     */
+    private function upsertBudgetForDemo(
+        string $type,
+        int $id,
+        string $start,
+        string $end,
+        int $amountCents,
+        int $priority,
+    ): array {
+        $budget = Budget::query()
+            ->where('budgetable_type', $type)
+            ->where('budgetable_id', $id)
+            ->where('period_starts_on', $start)
+            ->first();
+
+        if ($budget !== null) {
+            $budget->update([
+                'period_ends_on' => $end,
+                'amount_limit_cents' => $amountCents,
+                'priority' => $priority,
+            ]);
+
+            return [$budget, false];
+        }
+
+        $budget = Budget::query()->create([
+            'budgetable_type' => $type,
+            'budgetable_id' => $id,
+            'period_starts_on' => $start,
+            'period_ends_on' => $end,
+            'amount_limit_cents' => $amountCents,
+            'priority' => $priority,
+        ]);
+
+        return [$budget, true];
     }
 
     private function seedExpenseConcepts(): void

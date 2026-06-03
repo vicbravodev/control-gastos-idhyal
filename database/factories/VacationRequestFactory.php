@@ -19,7 +19,7 @@ class VacationRequestFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'status' => VacationRequestStatus::Draft,
+            'status' => VacationRequestStatus::Submitted,
             'folio' => null,
             'starts_on' => now()->startOfMonth(),
             'ends_on' => now()->startOfMonth()->addDays(4),

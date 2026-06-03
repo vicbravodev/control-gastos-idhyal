@@ -2,20 +2,17 @@
 
 namespace App\Http\Controllers\ExpenseRequests;
 
-use App\Enums\ExpenseReportDocumentType;
 use App\Enums\ExpenseReportStatus;
 use App\Enums\ExpenseRequestStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ExpenseRequests\ApproveExpenseReportRequest;
 use App\Http\Requests\ExpenseRequests\RejectExpenseReportRequest;
-use App\Http\Requests\ExpenseRequests\StoreExpenseReportDraftRequest;
 use App\Http\Requests\ExpenseRequests\SubmitExpenseReportRequest;
 use App\Models\ExpenseReport;
 use App\Models\ExpenseRequest;
 use App\Services\ExpenseReports\ApproveExpenseReport;
 use App\Services\ExpenseReports\Exceptions\InvalidExpenseReportException;
 use App\Services\ExpenseReports\RejectExpenseReport;
-use App\Services\ExpenseReports\SaveExpenseReportDraft;
 use App\Services\ExpenseReports\SubmitExpenseReportForReview;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,47 +65,6 @@ class ExpenseReportController extends Controller
         ]);
     }
 
-    public function storeDraft(
-        StoreExpenseReportDraftRequest $request,
-        ExpenseRequest $expenseRequest,
-        SaveExpenseReportDraft $saveDraft,
-        ?ExpenseReport $expenseReport = null,
-    ): RedirectResponse {
-        $report = $this->resolveReport($expenseRequest, $expenseReport);
-
-        // Backward-compat: if no report id passed, reuse the latest editable draft/rejected report.
-        if ($report === null) {
-            $report = $expenseRequest->expenseReports()
-                ->whereIn('status', [ExpenseReportStatus::Draft, ExpenseReportStatus::Rejected])
-                ->orderByDesc('id')
-                ->first();
-        }
-
-        try {
-            $saveDraft->save(
-                $expenseRequest,
-                $request->user(),
-                $request->integer('reported_amount_cents'),
-                $request->file('pdf'),
-                $request->file('xml'),
-                $request->filled('document_type')
-                    ? ExpenseReportDocumentType::tryFrom($request->string('document_type')->toString())
-                    : null,
-                $report,
-                $request->filled('label') ? $request->string('label')->toString() : null,
-            );
-        } catch (InvalidExpenseReportException $e) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->withErrors(['expense_report' => $e->getMessage()]);
-        }
-
-        return redirect()
-            ->route('expense-requests.show', $expenseRequest)
-            ->with('status', __('Borrador de comprobación guardado.'));
-    }
-
     public function submit(
         SubmitExpenseReportRequest $request,
         ExpenseRequest $expenseRequest,
@@ -117,10 +73,9 @@ class ExpenseReportController extends Controller
     ): RedirectResponse {
         $report = $this->resolveReport($expenseRequest, $expenseReport);
 
-        // Backward-compat: if no report id passed, reuse the latest editable draft/rejected report.
         if ($report === null) {
             $report = $expenseRequest->expenseReports()
-                ->whereIn('status', [ExpenseReportStatus::Draft, ExpenseReportStatus::Rejected])
+                ->where('status', ExpenseReportStatus::Rejected)
                 ->orderByDesc('id')
                 ->first();
         }

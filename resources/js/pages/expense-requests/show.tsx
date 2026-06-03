@@ -179,7 +179,6 @@ export default function ExpenseRequestsShow({
     canDownloadExpenseReportVerificationPdf,
     canDownloadExpenseReportVerificationXml,
     canRecordPayment,
-    canSaveExpenseReportDraft,
     canSubmitExpenseReport,
     canReviewExpenseReport,
     canRecordSettlementLiquidation,
@@ -200,7 +199,6 @@ export default function ExpenseRequestsShow({
     canDownloadExpenseReportVerificationPdf: boolean;
     canDownloadExpenseReportVerificationXml: boolean;
     canRecordPayment: boolean;
-    canSaveExpenseReportDraft: boolean;
     canSubmitExpenseReport: boolean;
     canReviewExpenseReport: boolean;
     canRecordSettlementLiquidation: boolean;
@@ -218,7 +216,6 @@ export default function ExpenseRequestsShow({
     const hasAction =
         !!activeApproval ||
         canRecordPayment ||
-        canSaveExpenseReportDraft ||
         canSubmitExpenseReport ||
         canRecordSettlementLiquidation ||
         canCloseSettlement;
@@ -368,9 +365,6 @@ export default function ExpenseRequestsShow({
                             <ActionRequiredCard
                                 expenseRequest={expenseRequest}
                                 canRecordPayment={canRecordPayment}
-                                canSaveExpenseReportDraft={
-                                    canSaveExpenseReportDraft
-                                }
                                 canSubmitExpenseReport={canSubmitExpenseReport}
                                 canRecordSettlementLiquidation={
                                     canRecordSettlementLiquidation
@@ -527,6 +521,7 @@ export default function ExpenseRequestsShow({
 
 function BalanceCard({ balance }: { balance: BalanceSummary }) {
     const remainingNegative = balance.remaining_cents < 0;
+
     return (
         <section className="overflow-hidden rounded-xl border border-border bg-card">
             <header className="flex items-center gap-2.5 border-b border-border px-5 py-3.5">

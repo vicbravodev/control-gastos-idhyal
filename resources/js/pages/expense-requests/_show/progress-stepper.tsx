@@ -195,7 +195,7 @@ function resolvePhases({
                 return 'completed';
             }
 
-            if (['accounting_review', 'draft'].includes(expenseReport.status)) {
+            if (expenseReport.status === 'accounting_review') {
                 return 'active';
             }
 
@@ -205,10 +205,6 @@ function resolvePhases({
         const reportSummary = (): string => {
             if (!expenseReport) {
                 return 'Esperando envío por el solicitante';
-            }
-
-            if (expenseReport.status === 'draft') {
-                return 'Borrador guardado';
             }
 
             if (expenseReport.status === 'accounting_review') {

@@ -275,7 +275,6 @@ class ExpenseRequestPolicy
     private function allowsExpenseReportVerificationFileAccess(User $user, ExpenseRequest $expenseRequest, ExpenseReport $report): bool
     {
         return match ($report->status) {
-            ExpenseReportStatus::Draft => $user->id === $expenseRequest->user_id,
             ExpenseReportStatus::AccountingReview,
             ExpenseReportStatus::Approved,
             ExpenseReportStatus::Rejected => true,
@@ -308,7 +307,7 @@ class ExpenseRequestPolicy
             && ! $expenseRequest->payments()->exists();
     }
 
-    public function saveExpenseReportDraft(User $user, ExpenseRequest $expenseRequest): bool
+    public function submitExpenseReport(User $user, ExpenseRequest $expenseRequest): bool
     {
         if ($user->id !== $expenseRequest->user_id) {
             return false;
@@ -319,11 +318,6 @@ class ExpenseRequestPolicy
             ExpenseRequestStatus::ExpenseReportRejected,
             ExpenseRequestStatus::ExpenseReportInReview,
         ], true);
-    }
-
-    public function submitExpenseReport(User $user, ExpenseRequest $expenseRequest): bool
-    {
-        return $this->saveExpenseReportDraft($user, $expenseRequest);
     }
 
     public function reviewExpenseReport(User $user, ExpenseRequest $expenseRequest): bool

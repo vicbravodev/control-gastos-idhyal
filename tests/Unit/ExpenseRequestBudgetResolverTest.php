@@ -133,6 +133,25 @@ class ExpenseRequestBudgetResolverTest extends TestCase
         $this->assertSame($userBudget->id, $resolved->id);
     }
 
+    public function test_cancelled_budgets_are_excluded(): void
+    {
+        $this->seed(RoleSeeder::class);
+
+        $user = User::factory()->forRole('asesor')->create();
+
+        Budget::factory()->forBudgetable('user', $user->id)->cancelled()->create([
+            ...$this->widePeriod(),
+            'amount_limit_cents' => 50_000_000,
+            'priority' => 100,
+        ]);
+
+        $expense = ExpenseRequest::factory()->create(['user_id' => $user->id]);
+
+        $resolved = app(ExpenseRequestBudgetResolver::class)->resolve($expense);
+
+        $this->assertNull($resolved);
+    }
+
     public function test_returns_null_when_no_period_overlap(): void
     {
         $this->seed(RoleSeeder::class);

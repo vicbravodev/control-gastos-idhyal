@@ -63,7 +63,6 @@ class VacationEntitlementBalanceResolverTest extends TestCase
 
         foreach (
             [
-                VacationRequestStatus::Draft,
                 VacationRequestStatus::Rejected,
                 VacationRequestStatus::Cancelled,
             ] as $status

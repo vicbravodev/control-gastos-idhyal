@@ -63,10 +63,7 @@ final class SubmitExpenseReportForReview
                 throw new InvalidExpenseReportException(__('La comprobación no pertenece a esta solicitud.'));
             }
 
-            if (! in_array($report->status, [
-                ExpenseReportStatus::Draft,
-                ExpenseReportStatus::Rejected,
-            ], true)) {
+            if ($report->status !== ExpenseReportStatus::Rejected) {
                 throw new InvalidExpenseReportException(__('La comprobación ya fue enviada o cerrada.'));
             }
         }
@@ -112,11 +109,14 @@ final class SubmitExpenseReportForReview
             if ($report === null) {
                 $report = ExpenseReport::query()->create(array_merge([
                     'expense_request_id' => $expenseRequest->id,
-                    'status' => ExpenseReportStatus::Draft,
-                    'submitted_at' => null,
+                    'status' => ExpenseReportStatus::AccountingReview,
+                    'submitted_at' => now(),
                 ], $payload));
             } else {
-                $report->update($payload);
+                $report->update(array_merge($payload, [
+                    'status' => ExpenseReportStatus::AccountingReview,
+                    'submitted_at' => now(),
+                ]));
             }
 
             $report = $report->fresh();
@@ -129,10 +129,7 @@ final class SubmitExpenseReportForReview
                 $this->attachments->storeKind($report, $actor, $xml, 'xml');
             }
 
-            $report->update([
-                'status' => ExpenseReportStatus::AccountingReview,
-                'submitted_at' => now(),
-            ]);
+            $report = $report->fresh();
 
             if ($cfdiDto !== null) {
                 $this->cfdiIngestor->persistImpuestos($report->fresh(), $cfdiDto);

@@ -2,6 +2,7 @@
 
 namespace App\Services\Budgets;
 
+use App\Enums\BudgetStatus;
 use App\Models\Budget;
 use App\Models\ExpenseRequest;
 use App\Models\User;
@@ -39,6 +40,7 @@ final class ExpenseRequestBudgetResolver
         [$windowStart, $windowEnd] = $this->expenseWindow($expenseRequest);
 
         $query = Budget::query()
+            ->where('status', BudgetStatus::Active->value)
             ->where(function (Builder $outer) use ($user, $effectiveStateId): void {
                 $outer->where(function (Builder $q) use ($user): void {
                     $q->where('budgetable_type', 'user')

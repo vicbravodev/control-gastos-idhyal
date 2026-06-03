@@ -53,7 +53,6 @@ class AppServiceProvider extends ServiceProvider
             'update',
             'cancel',
             'recordPayment',
-            'saveExpenseReportDraft',
             'submitExpenseReport',
             'reviewExpenseReport',
             'recordSettlementLiquidation',

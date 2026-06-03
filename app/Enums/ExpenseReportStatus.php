@@ -7,8 +7,6 @@ namespace App\Enums;
  */
 enum ExpenseReportStatus: string
 {
-    case Draft = 'draft';
-
     case Submitted = 'submitted';
 
     case AccountingReview = 'accounting_review';
@@ -22,7 +20,6 @@ enum ExpenseReportStatus: string
     public function label(): string
     {
         return match ($this) {
-            self::Draft => 'Borrador',
             self::Submitted => 'Enviada',
             self::AccountingReview => 'En revisión contable',
             self::Rejected => 'Rechazada',

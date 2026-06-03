@@ -9,7 +9,6 @@ import type { Detail, SettlementSummary } from './types';
 type Props = {
     expenseRequest: Detail;
     canRecordPayment: boolean;
-    canSaveExpenseReportDraft: boolean;
     canSubmitExpenseReport: boolean;
     canRecordSettlementLiquidation: boolean;
     canCloseSettlement: boolean;
@@ -20,7 +19,6 @@ type Props = {
 export default function ActionRequiredCard({
     expenseRequest,
     canRecordPayment,
-    canSaveExpenseReportDraft,
     canSubmitExpenseReport,
     canRecordSettlementLiquidation,
     canCloseSettlement,
@@ -69,13 +67,12 @@ export default function ActionRequiredCard({
         );
     }
 
-    if (canSaveExpenseReportDraft || canSubmitExpenseReport) {
+    if (canSubmitExpenseReport) {
         return (
             <Section label="Acción requerida: presentar comprobación">
                 <ExpenseReportSubmitCard
                     expenseRequestId={expenseRequest.id}
                     defaultReportedCents={defaultReportedCents}
-                    canSaveDraft={canSaveExpenseReportDraft}
                     canSubmit={canSubmitExpenseReport}
                 />
             </Section>

@@ -112,7 +112,7 @@ class ExpenseReportHttpTest extends TestCase
                 ->where('expenseReports.data.0.expense_request.id', $expenseRequest->id));
     }
 
-    public function test_requester_can_save_draft_and_submit_notifies_accounting(): void
+    public function test_requester_submits_report_directly_to_accounting_review(): void
     {
         $this->seedRoles();
         Notification::fake();
@@ -122,15 +122,6 @@ class ExpenseReportHttpTest extends TestCase
         $accounting = User::factory()->forRole('contabilidad')->create();
         $expenseRequest->update(['status' => ExpenseRequestStatus::PendingPayment]);
         $this->recordPaymentForRequest($expenseRequest, $accounting, 100_000);
-
-        $this->actingAs($requester)
-            ->post(route('expense-requests.expense-report.draft', $expenseRequest), [
-                'reported_amount_cents' => 95_000,
-            ])
-            ->assertRedirect(route('expense-requests.show', $expenseRequest));
-
-        $report = ExpenseReport::query()->where('expense_request_id', $expenseRequest->id)->firstOrFail();
-        $this->assertSame(ExpenseReportStatus::Draft, $report->status);
 
         $pdf = UploadedFile::fake()->create('c.pdf', 100, 'application/pdf');
         $xml = UploadedFile::fake()->createWithContent('c.xml', $this->cfdiXmlForReportedCents(95_000));
@@ -145,9 +136,10 @@ class ExpenseReportHttpTest extends TestCase
             ->assertRedirect(route('expense-requests.show', $expenseRequest));
 
         $expenseRequest->refresh();
-        $report->refresh();
+        $report = ExpenseReport::query()->where('expense_request_id', $expenseRequest->id)->firstOrFail();
         $this->assertSame(ExpenseRequestStatus::ExpenseReportInReview, $expenseRequest->status);
-        $this->assertSame(ExpenseReportStatus::AccountingReview, $report->fresh()->status);
+        $this->assertSame(ExpenseReportStatus::AccountingReview, $report->status);
+        $this->assertNotNull($report->submitted_at);
 
         $this->assertTrue(DocumentEvent::query()
             ->where('subject_id', $expenseRequest->id)
@@ -429,7 +421,7 @@ class ExpenseReportHttpTest extends TestCase
             ->assertSessionHasErrors('xml');
     }
 
-    public function test_draft_save_rejects_invalid_cfdi_xml(): void
+    public function test_submit_rejects_invalid_cfdi_xml(): void
     {
         $this->seedRoles();
         Storage::fake('local');
@@ -439,11 +431,14 @@ class ExpenseReportHttpTest extends TestCase
         $expenseRequest->update(['status' => ExpenseRequestStatus::PendingPayment]);
         $this->recordPaymentForRequest($expenseRequest, $accounting, 100_000);
 
+        $pdf = UploadedFile::fake()->create('c.pdf', 100, 'application/pdf');
         $xml = UploadedFile::fake()->createWithContent('c.xml', '<?xml version="1.0"?><root/>');
 
         $this->actingAs($requester)
-            ->post(route('expense-requests.expense-report.draft', $expenseRequest), [
+            ->post(route('expense-requests.expense-report.submit', $expenseRequest), [
                 'reported_amount_cents' => 95_000,
+                'document_type' => 'factura',
+                'pdf' => $pdf,
                 'xml' => $xml,
             ])
             ->assertRedirect()

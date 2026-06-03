@@ -19,12 +19,14 @@ use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Settlement;
 use App\Models\User;
+use App\Notifications\ExpenseRequests\ExpenseRequestOverCapExtensionRequestedNotification;
 use App\Services\Approvals\ExpenseRequestApprovalService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia;
 use Tests\Support\CfdiTestFixtures;
 use Tests\TestCase;
 
@@ -283,6 +285,49 @@ class ExpenseRequestMultiReceiptTest extends TestCase
             ->assertSessionHasErrors('expense_report');
 
         $this->assertSame(1, $expenseRequest->expenseReports()->count());
+    }
+
+    public function test_over_cap_notifies_first_step_approvers_and_appears_in_pending_tray(): void
+    {
+        Storage::fake('local');
+        Notification::fake();
+
+        $this->createOneStepPolicy('contabilidad');
+
+        $requester = User::factory()->forRole('asesor')->create();
+        $accounting = User::factory()->forRole('contabilidad')->create();
+
+        $expenseRequest = ExpenseRequest::factory()->create([
+            'user_id' => $requester->id,
+            'status' => ExpenseRequestStatus::AwaitingExpenseReport,
+            'requested_amount_cents' => 20_000,
+            'approved_amount_cents' => 20_000,
+            'folio' => 'MR-OC-NOTIF-'.uniqid(),
+        ]);
+        Payment::factory()->create([
+            'expense_request_id' => $expenseRequest->id,
+            'recorded_by_user_id' => $accounting->id,
+            'amount_cents' => 20_000,
+        ]);
+
+        $this->submitReceipt($requester, $expenseRequest, 32_000, 'Gas');
+
+        $expenseRequest->refresh();
+        $this->assertSame(ExpenseRequestStatus::ExpenseReportInReview, $expenseRequest->status);
+
+        Notification::assertSentTo(
+            $accounting,
+            ExpenseRequestOverCapExtensionRequestedNotification::class,
+            fn ($n) => $n->expenseRequest->id === $expenseRequest->id,
+        );
+
+        $this->actingAs($accounting)
+            ->get(route('expense-requests.approvals.pending'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->component('expense-requests/approvals/pending')
+                ->has('items', 1)
+                ->where('items.0.expense_request_id', $expenseRequest->id));
     }
 
     private function createOneStepPolicy(string $approverRoleSlug): void

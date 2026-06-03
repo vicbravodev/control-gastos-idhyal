@@ -11,6 +11,7 @@ use App\Http\Requests\ExpenseRequests\RejectExpenseRequestApprovalRequest;
 use App\Models\ExpenseRequest;
 use App\Models\ExpenseRequestApproval;
 use App\Services\Approvals\Exceptions\InvalidApprovalStateException;
+use App\Services\Approvals\Exceptions\NoActiveApprovalPolicyException;
 use App\Services\Approvals\ExpenseRequestApprovalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,7 +45,11 @@ class ExpenseRequestApprovalController extends Controller
                         ->where('approver_id', $user->id);
                 });
             })
-            ->whereHas('expenseRequest', fn ($q) => $q->where('status', ExpenseRequestStatus::ApprovalInProgress))
+            ->whereHas('expenseRequest', fn ($q) => $q->whereIn('status', [
+                ExpenseRequestStatus::ApprovalInProgress,
+                ExpenseRequestStatus::AwaitingExpenseReport,
+                ExpenseRequestStatus::ExpenseReportInReview,
+            ]))
             ->with(['expenseRequest.user', 'expenseRequest.expenseConcept', 'approver'])
             ->orderByDesc('id')
             ->get();
@@ -119,5 +124,29 @@ class ExpenseRequestApprovalController extends Controller
         return redirect()
             ->route('expense-requests.show', $expenseRequest)
             ->with('status', __('Solicitud rechazada.'));
+    }
+
+    public function rebuildWorkflow(
+        Request $request,
+        ExpenseRequest $expenseRequest,
+        ExpenseRequestApprovalService $approvalService,
+    ): RedirectResponse {
+        $this->authorize('rebuildWorkflow', $expenseRequest);
+
+        try {
+            $approvalService->rebuildWorkflow($expenseRequest, $request->user());
+        } catch (InvalidApprovalStateException $e) {
+            return redirect()
+                ->back()
+                ->withErrors(['rebuild_workflow' => $e->getMessage()]);
+        } catch (NoActiveApprovalPolicyException) {
+            return redirect()
+                ->back()
+                ->withErrors(['rebuild_workflow' => __('No hay una política activa para reasignar la cadena.')]);
+        }
+
+        return redirect()
+            ->route('expense-requests.show', $expenseRequest)
+            ->with('status', __('Cadena de aprobación rearmada con la política vigente.'));
     }
 }

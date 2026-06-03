@@ -41,4 +41,7 @@ enum DocumentEventType: string
 
     /** Comprobación directa registrada sin solicitud previa (reembolso). */
     case ExpenseRequestReimbursementCreated = 'expense_request_reimbursement_created';
+
+    /** Cadena de aprobación rearmada manualmente (rescate tras cambio de política). */
+    case ExpenseRequestApprovalChainRebuilt = 'expense_request_approval_chain_rebuilt';
 }

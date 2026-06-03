@@ -6,13 +6,17 @@ use App\Enums\ApprovalInstanceStatus;
 use App\Enums\ApprovalPolicyDocumentType;
 use App\Enums\ApprovalStepMode;
 use App\Enums\DocumentEventType;
+use App\Enums\ExpenseRequestApprovalReason;
 use App\Enums\ExpenseRequestStatus;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalPolicyStep;
+use App\Models\DocumentEvent;
 use App\Models\ExpenseConcept;
 use App\Models\ExpenseRequest;
 use App\Models\ExpenseRequestApproval;
+use App\Models\Region;
 use App\Models\Role;
+use App\Models\State;
 use App\Models\User;
 use App\Notifications\ExpenseRequests\ExpenseRequestApprovalProgressNotification;
 use App\Notifications\ExpenseRequests\ExpenseRequestFullyApprovedNotification;
@@ -37,6 +41,89 @@ class ExpenseRequestHttpTest extends TestCase
     private function activeExpenseConcept(): ExpenseConcept
     {
         return ExpenseConcept::factory()->create(['is_active' => true]);
+    }
+
+    public function test_super_admin_can_rebuild_orphaned_approval_chain_after_policy_change(): void
+    {
+        $this->seedRoles();
+        Notification::fake();
+
+        $oldPolicy = $this->createExpensePolicyWithTwoAndSteps();
+        $requester = User::factory()->forRole('asesor')->create();
+        $concept = $this->activeExpenseConcept();
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.store'), [
+                'requested_amount_cents' => 50_000,
+                'expense_concept_id' => $concept->id,
+                'delivery_method' => 'cash',
+            ])
+            ->assertRedirect();
+
+        $expense = ExpenseRequest::query()->where('user_id', $requester->id)->firstOrFail();
+        $this->assertSame(ExpenseRequestStatus::ApprovalInProgress, $expense->status);
+        $this->assertSame(2, $expense->approvals()->count());
+
+        // Simulate the admin changing the policy: delete old policy, create a new one with different approvers.
+        $oldPolicy->steps()->delete();
+        $oldPolicy->delete();
+        $newSecGen = Role::query()->where('slug', 'secretario_general')->firstOrFail();
+        $newPolicy = ApprovalPolicy::factory()->create([
+            'document_type' => ApprovalPolicyDocumentType::ExpenseRequest,
+        ]);
+        ApprovalPolicyStep::factory()->create([
+            'approval_policy_id' => $newPolicy->id,
+            'step_order' => 1,
+            'approver_type' => 'role',
+            'approver_id' => $newSecGen->id,
+            'step_mode' => ApprovalStepMode::Sequential,
+        ]);
+
+        // Confirm the chain points at the old (now-deleted) approvers and would be unworkable.
+        $oldCoordRoleId = Role::query()->where('slug', 'coord_regional')->value('id');
+        $this->assertTrue($expense->approvals()
+            ->where('approver_id', $oldCoordRoleId)
+            ->exists());
+
+        // Rebuild as super admin
+        $superAdmin = User::factory()->forRole('super_admin')->create();
+        $this->actingAs($superAdmin)
+            ->post(route('expense-requests.approvals.rebuild-workflow', $expense))
+            ->assertRedirect(route('expense-requests.show', $expense));
+
+        $expense->refresh();
+        $rebuilt = $expense->approvals()->where('reason', ExpenseRequestApprovalReason::Initial)->get();
+        $this->assertCount(1, $rebuilt);
+        $this->assertSame($newSecGen->id, $rebuilt->first()->approver_id);
+        $this->assertSame(ApprovalInstanceStatus::Pending, $rebuilt->first()->status);
+
+        $this->assertTrue(DocumentEvent::query()
+            ->where('subject_id', $expense->id)
+            ->where('event_type', DocumentEventType::ExpenseRequestApprovalChainRebuilt->value)
+            ->exists());
+    }
+
+    public function test_non_super_admin_cannot_rebuild_workflow(): void
+    {
+        $this->seedRoles();
+        $this->createExpensePolicyWithTwoAndSteps();
+
+        $requester = User::factory()->forRole('asesor')->create();
+        $concept = $this->activeExpenseConcept();
+
+        $this->actingAs($requester)
+            ->post(route('expense-requests.store'), [
+                'requested_amount_cents' => 50_000,
+                'expense_concept_id' => $concept->id,
+                'delivery_method' => 'cash',
+            ]);
+
+        $expense = ExpenseRequest::query()->where('user_id', $requester->id)->firstOrFail();
+        $coord = User::factory()->forRole('coord_regional')->create();
+
+        $this->actingAs($coord)
+            ->post(route('expense-requests.approvals.rebuild-workflow', $expense))
+            ->assertForbidden();
     }
 
     private function createExpensePolicyWithTwoAndSteps(): ApprovalPolicy
@@ -141,6 +228,108 @@ class ExpenseRequestHttpTest extends TestCase
             'event_type' => DocumentEventType::ExpenseRequestSubmitted->value,
             'actor_user_id' => $requester->id,
         ]);
+    }
+
+    public function test_regional_coordinator_must_pick_state_when_creating_request(): void
+    {
+        $this->seedRoles();
+        $this->createExpensePolicyWithTwoAndSteps();
+
+        $region = Region::query()->create(['code' => 'RX', 'name' => 'Región X']);
+        State::query()->create(['code' => 'X1', 'name' => 'Estado X1', 'region_id' => $region->id]);
+        State::query()->create(['code' => 'X2', 'name' => 'Estado X2', 'region_id' => $region->id]);
+
+        $coord = User::factory()->forRole('coord_regional')->create([
+            'region_id' => $region->id,
+            'state_id' => null,
+        ]);
+        $concept = $this->activeExpenseConcept();
+
+        $this->actingAs($coord)
+            ->from(route('expense-requests.create'))
+            ->post(route('expense-requests.store'), [
+                'requested_amount_cents' => 50_000,
+                'expense_concept_id' => $concept->id,
+                'delivery_method' => 'cash',
+            ])
+            ->assertRedirect(route('expense-requests.create'))
+            ->assertSessionHasErrors('state_id');
+
+        $this->assertDatabaseMissing('expense_requests', ['user_id' => $coord->id]);
+    }
+
+    public function test_regional_coordinator_stores_state_id_when_picked(): void
+    {
+        $this->seedRoles();
+        $this->createExpensePolicyWithTwoAndSteps();
+
+        $region = Region::query()->create(['code' => 'RY', 'name' => 'Región Y']);
+        $otherRegion = Region::query()->create(['code' => 'RZ-other', 'name' => 'Otra Región']);
+        $stateA = State::query()->create(['code' => 'Y1', 'name' => 'Estado Y1', 'region_id' => $region->id]);
+        $stateOutside = State::query()->create(['code' => 'Z9', 'name' => 'Estado Fuera', 'region_id' => $otherRegion->id]);
+
+        $coord = User::factory()->forRole('coord_regional')->create([
+            'region_id' => $region->id,
+            'state_id' => null,
+        ]);
+        $concept = $this->activeExpenseConcept();
+
+        // Rechaza estado fuera de su región
+        $this->actingAs($coord)
+            ->from(route('expense-requests.create'))
+            ->post(route('expense-requests.store'), [
+                'requested_amount_cents' => 50_000,
+                'expense_concept_id' => $concept->id,
+                'delivery_method' => 'cash',
+                'state_id' => $stateOutside->id,
+            ])
+            ->assertSessionHasErrors('state_id');
+
+        // Acepta estado de su región
+        $this->actingAs($coord)
+            ->post(route('expense-requests.store'), [
+                'requested_amount_cents' => 50_000,
+                'expense_concept_id' => $concept->id,
+                'delivery_method' => 'cash',
+                'state_id' => $stateA->id,
+            ])
+            ->assertRedirect();
+
+        $expense = ExpenseRequest::query()->where('user_id', $coord->id)->firstOrFail();
+        $this->assertSame($stateA->id, $expense->state_id);
+    }
+
+    public function test_create_page_exposes_available_states_only_to_regional_coordinator(): void
+    {
+        $this->seedRoles();
+
+        $region = Region::query()->create(['code' => 'RZ', 'name' => 'Región Z']);
+        State::query()->create(['code' => 'Z1', 'name' => 'Estado Z1', 'region_id' => $region->id]);
+        State::query()->create(['code' => 'Z2', 'name' => 'Estado Z2', 'region_id' => $region->id]);
+
+        $coordRegional = User::factory()->forRole('coord_regional')->create([
+            'region_id' => $region->id,
+            'state_id' => null,
+        ]);
+        $asesor = User::factory()->forRole('asesor')->create([
+            'region_id' => $region->id,
+            'state_id' => null,
+        ]);
+
+        $this->actingAs($coordRegional)
+            ->get(route('expense-requests.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('expense-requests/create')
+                ->where('requiresStatePick', true)
+                ->has('availableStates', 2));
+
+        $this->actingAs($asesor)
+            ->get(route('expense-requests.create'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('requiresStatePick', true)
+                ->has('availableStates', 2));
     }
 
     public function test_submission_receipt_pdf_is_downloadable_by_viewer(): void

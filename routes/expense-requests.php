@@ -80,6 +80,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('expense-requests/{expenseRequest}/approvals/{approval}/reject', [ExpenseRequestApprovalController::class, 'reject'])
         ->name('expense-requests.approvals.reject');
 
+    Route::post('expense-requests/{expenseRequest}/approvals/rebuild-workflow', [ExpenseRequestApprovalController::class, 'rebuildWorkflow'])
+        ->name('expense-requests.approvals.rebuild-workflow');
+
     Route::get('expense-requests/{expense_request}/receipts/submission', [ExpenseRequestController::class, 'downloadSubmissionReceipt'])
         ->name('expense-requests.receipts.submission');
 

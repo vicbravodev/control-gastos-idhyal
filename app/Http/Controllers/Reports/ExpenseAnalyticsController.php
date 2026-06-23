@@ -8,48 +8,154 @@ use App\Http\Controllers\Controller;
 use App\Models\ExpenseConcept;
 use App\Models\ExpenseRequest;
 use App\Models\Region;
+use App\Models\ReportTemplate;
+use App\Models\Role;
 use App\Models\State;
 use App\Models\User;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\Reports\ExpenseAggregator;
+use App\Services\Reports\PeriodPresetResolver;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
 
 class ExpenseAnalyticsController extends Controller
 {
-    public function index(Request $request): InertiaResponse
-    {
+    public function index(
+        Request $request,
+        PeriodPresetResolver $resolver,
+        ExpenseAggregator $aggregator,
+    ): InertiaResponse {
         $this->authorizeAccess($request);
 
-        $query = $this->buildFilteredQuery($request);
+        $user = $request->user();
 
-        $summaryQuery = (clone $query);
+        // Optionally hydrate baseline filters from a template.
+        $template = $this->resolveTemplate($request);
+        $base = $template?->filters ?? [];
 
-        $summary = [
-            'total_count' => $summaryQuery->count(),
-            'total_requested_cents' => (int) (clone $summaryQuery)->sum('requested_amount_cents'),
-            'total_approved_cents' => (int) (clone $summaryQuery)->sum('approved_amount_cents'),
-            'total_paid_cents' => (int) (clone $summaryQuery)
-                ->whereHas('payments')
-                ->get()
-                ->flatMap->payments
-                ->sum('amount_cents'),
-            'by_status' => (clone $summaryQuery)
-                ->selectRaw('status, count(*) as count, sum(requested_amount_cents) as total_cents')
-                ->groupBy('status')
-                ->get()
-                ->map(fn ($row) => [
-                    'status' => $row->status->value,
-                    'count' => (int) $row->count,
-                    'total_cents' => (int) $row->total_cents,
-                ])
-                ->values()
-                ->all(),
+        $rawPeriod = $request->query('period', $base['period'] ?? null);
+        $filters = $this->resolveFilters($request, $base);
+        // If the caller passes only a custom date range without specifying
+        // a preset, treat that as "custom" so the range is honoured.
+        if (! $rawPeriod && ($filters['date_from'] || $filters['date_to'])) {
+            $rawPeriod = 'custom';
+        }
+        $period = $rawPeriod ?: 'ytd';
+        $compare = $request->boolean('compare', (bool) ($base['compare'] ?? false));
+        $view = $request->query('view', $base['view'] ?? $template?->view ?? 'resumen');
+        if (! in_array($view, ['resumen', 'pivote', 'detalle'], true)) {
+            $view = 'resumen';
+        }
+        $groupBy = $request->query('group_by', $base['group_by'] ?? $template?->group_by ?? 'region');
+        $granularity = $request->query('granularity');
+
+        $resolved = $resolver->resolve(
+            $period,
+            $filters['date_from'] ?: null,
+            $filters['date_to'] ?: null,
+        );
+
+        $range = ['start' => $resolved['start'], 'end' => $resolved['end'], 'granularity' => $resolved['granularity']];
+        $prevRange = $compare
+            ? ['start' => $resolved['prev_start'], 'end' => $resolved['prev_end'], 'granularity' => $resolved['granularity']]
+            : null;
+
+        $kpis = $aggregator->kpis($filters, $range, $prevRange);
+        $sparklines = $aggregator->sparklines($filters, $range);
+        $byStatus = $aggregator->byStatus($filters, $range);
+
+        $payload = [
+            'kpis' => $kpis,
+            'sparklines' => $sparklines,
+            'byStatus' => $byStatus,
+            'templates' => $this->templatesPayload($user),
+            'period' => [
+                'id' => $resolved['id'],
+                'label' => $resolved['label'],
+                'range_label' => $resolved['range_label'],
+                'start' => $resolved['start']->toIso8601String(),
+                'end' => $resolved['end']->toIso8601String(),
+                'prev_start' => $resolved['prev_start']->toIso8601String(),
+                'prev_end' => $resolved['prev_end']->toIso8601String(),
+                'granularity' => $resolved['granularity'],
+            ],
+            'period_presets' => $resolver->listPresets(),
+            'view' => $view,
+            'group_by' => $groupBy,
+            'compare' => $compare,
+            'filters' => $filters,
+            'active_template_id' => $template?->id,
+            'filter_options' => Inertia::lazy(fn () => $this->filterOptions()),
         ];
 
-        $expenseRequests = $query
+        if ($view === 'resumen') {
+            $payload['timeSeries'] = $aggregator->timeSeries($filters, $range, $granularity);
+            $payload['byRegion'] = $aggregator->byDimension($filters, $range, 'region');
+            $payload['byConcept'] = $aggregator->byDimension($filters, $range, 'concepto');
+            $payload['byUser'] = array_slice(
+                $aggregator->byDimension($filters, $range, 'usuario'),
+                0,
+                6,
+            );
+        }
+
+        if ($view === 'pivote') {
+            $payload['byDimension'] = $aggregator->byDimension($filters, $range, $groupBy);
+        }
+
+        if ($view === 'detalle') {
+            $payload['expenseRequests'] = $this->paginatedDetail($aggregator, $filters, $range);
+        }
+
+        return Inertia::render('reports/index', $payload);
+    }
+
+    private function resolveTemplate(Request $request): ?ReportTemplate
+    {
+        $id = $request->query('template_id');
+        if (! $id) {
+            return null;
+        }
+
+        $user = $request->user();
+
+        return ReportTemplate::query()
+            ->whereKey($id)
+            ->where(function ($q) use ($user) {
+                $q->where('is_built_in', true)
+                    ->orWhere('is_shared', true)
+                    ->orWhere('owner_user_id', $user?->id);
+            })
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $base
+     * @return array<string, string>
+     */
+    private function resolveFilters(Request $request, array $base): array
+    {
+        $keys = [
+            'search', 'status', 'region_id', 'state_id', 'user_id',
+            'expense_concept_id', 'delivery_method', 'role_id',
+            'date_from', 'date_to',
+        ];
+
+        $out = [];
+
+        foreach ($keys as $k) {
+            $value = $request->query($k, $base[$k] ?? '');
+            $out[$k] = is_string($value) ? $value : (string) $value;
+        }
+
+        return $out;
+    }
+
+    private function paginatedDetail(ExpenseAggregator $aggregator, array $filters, array $range)
+    {
+        return $aggregator
+            ->baseQuery($filters, $range)
             ->with(['user.region', 'user.state', 'user.role', 'expenseConcept', 'payments'])
             ->latest()
             ->paginate(20)
@@ -69,57 +175,35 @@ class ExpenseAnalyticsController extends Controller
                 'state_name' => $r->user->state?->name,
                 'created_at' => $r->created_at?->toIso8601String(),
             ]);
-
-        return Inertia::render('reports/index', [
-            'summary' => $summary,
-            'expenseRequests' => $expenseRequests,
-            'filters' => [
-                'search' => $request->query('search', ''),
-                'status' => $request->query('status', ''),
-                'region_id' => $request->query('region_id', ''),
-                'state_id' => $request->query('state_id', ''),
-                'user_id' => $request->query('user_id', ''),
-                'expense_concept_id' => $request->query('expense_concept_id', ''),
-                'delivery_method' => $request->query('delivery_method', ''),
-                'date_from' => $request->query('date_from', ''),
-                'date_to' => $request->query('date_to', ''),
-            ],
-            'filter_options' => Inertia::lazy(fn () => $this->filterOptions()),
-        ]);
     }
 
-    public function exportPdf(Request $request): Response
+    private function templatesPayload(?User $user): array
     {
-        $this->authorizeAccess($request);
-
-        $query = $this->buildFilteredQuery($request);
-
-        $rows = $query
-            ->with(['user.region', 'user.state', 'user.role', 'expenseConcept', 'payments'])
-            ->latest()
-            ->limit(500)
+        $rows = ReportTemplate::query()
+            ->where(function ($q) use ($user) {
+                $q->where('is_built_in', true);
+                if ($user !== null) {
+                    $q->orWhere('owner_user_id', $user->id);
+                }
+                $q->orWhere('is_shared', true);
+            })
+            ->orderBy('is_built_in', 'desc')
+            ->orderBy('name')
             ->get();
 
-        $summaryQuery = $this->buildFilteredQuery($request);
-
-        $summary = [
-            'total_count' => $summaryQuery->count(),
-            'total_requested_cents' => (int) (clone $summaryQuery)->sum('requested_amount_cents'),
-            'total_approved_cents' => (int) (clone $summaryQuery)->sum('approved_amount_cents'),
-        ];
-
-        $activeFiltersLabels = $this->activeFilterLabels($request);
-
-        $pdf = Pdf::loadView('pdf.expense-analytics-report', [
-            'rows' => $rows,
-            'summary' => $summary,
-            'activeFilters' => $activeFiltersLabels,
-            'generatedAt' => now(),
-        ]);
-
-        $pdf->setPaper('a4', 'landscape');
-
-        return $pdf->download('reporte-gastos-'.now()->format('Y-m-d-His').'.pdf');
+        return $rows->map(fn (ReportTemplate $t) => [
+            'id' => $t->id,
+            'slug' => $t->slug,
+            'name' => $t->name,
+            'description' => $t->description,
+            'icon' => $t->icon,
+            'view' => $t->view,
+            'group_by' => $t->group_by,
+            'filters' => $t->filters,
+            'is_built_in' => $t->is_built_in,
+            'is_shared' => $t->is_shared,
+            'is_owner' => $user !== null && $t->owner_user_id === $user->id,
+        ])->all();
     }
 
     private function authorizeAccess(Request $request): void
@@ -133,23 +217,6 @@ class ExpenseAnalyticsController extends Controller
     }
 
     /**
-     * @return Builder<ExpenseRequest>
-     */
-    private function buildFilteredQuery(Request $request): Builder
-    {
-        return ExpenseRequest::query()
-            ->when($request->query('search'), fn (Builder $q, string $search) => $q->where('folio', 'like', "%{$search}%"))
-            ->when($request->query('status'), fn (Builder $q, string $status) => $q->where('status', $status))
-            ->when($request->query('expense_concept_id'), fn (Builder $q, string $id) => $q->where('expense_concept_id', $id))
-            ->when($request->query('delivery_method'), fn (Builder $q, string $method) => $q->where('delivery_method', $method))
-            ->when($request->query('date_from'), fn (Builder $q, string $date) => $q->whereDate('created_at', '>=', $date))
-            ->when($request->query('date_to'), fn (Builder $q, string $date) => $q->whereDate('created_at', '<=', $date))
-            ->when($request->query('user_id'), fn (Builder $q, string $userId) => $q->where('user_id', $userId))
-            ->when($request->query('region_id'), fn (Builder $q, string $regionId) => $q->whereHas('user', fn (Builder $uq) => $uq->where('region_id', $regionId)))
-            ->when($request->query('state_id'), fn (Builder $q, string $stateId) => $q->whereHas('user', fn (Builder $uq) => $uq->where('state_id', $stateId)));
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function filterOptions(): array
@@ -159,58 +226,20 @@ class ExpenseAnalyticsController extends Controller
                 static fn (ExpenseRequestStatus $s) => ['value' => $s->value, 'label' => $s->label()],
                 ExpenseRequestStatus::cases(),
             ),
-            'regions' => Region::query()->orderBy('name')->get(['id', 'name'])->map(fn ($r) => ['value' => (string) $r->id, 'label' => $r->name])->all(),
-            'states' => State::query()->orderBy('name')->get(['id', 'name', 'region_id'])->map(fn ($s) => ['value' => (string) $s->id, 'label' => $s->name, 'region_id' => (string) $s->region_id])->all(),
-            'users' => User::query()->orderBy('name')->get(['id', 'name'])->map(fn ($u) => ['value' => (string) $u->id, 'label' => $u->name])->all(),
-            'expense_concepts' => ExpenseConcept::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name'])->map(fn ($c) => ['value' => (string) $c->id, 'label' => $c->name])->all(),
+            'regions' => Region::query()->orderBy('name')->get(['id', 'name'])
+                ->map(fn ($r) => ['value' => (string) $r->id, 'label' => $r->name])->all(),
+            'states' => State::query()->orderBy('name')->get(['id', 'name', 'region_id'])
+                ->map(fn ($s) => ['value' => (string) $s->id, 'label' => $s->name, 'region_id' => (string) $s->region_id])->all(),
+            'users' => User::query()->orderBy('name')->get(['id', 'name'])
+                ->map(fn ($u) => ['value' => (string) $u->id, 'label' => $u->name])->all(),
+            'roles' => Role::query()->orderBy('name')->get(['id', 'name'])
+                ->map(fn ($r) => ['value' => (string) $r->id, 'label' => $r->name])->all(),
+            'expense_concepts' => ExpenseConcept::query()->active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name'])
+                ->map(fn ($c) => ['value' => (string) $c->id, 'label' => $c->name])->all(),
             'delivery_methods' => array_map(
                 static fn (DeliveryMethod $d) => ['value' => $d->value, 'label' => $d->label()],
                 DeliveryMethod::cases(),
             ),
         ];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function activeFilterLabels(Request $request): array
-    {
-        $labels = [];
-
-        if ($request->filled('date_from')) {
-            $labels[] = 'Desde: '.$request->query('date_from');
-        }
-        if ($request->filled('date_to')) {
-            $labels[] = 'Hasta: '.$request->query('date_to');
-        }
-        if ($request->filled('status')) {
-            $status = ExpenseRequestStatus::tryFrom($request->query('status'));
-            $labels[] = 'Estado: '.($status?->label() ?? $request->query('status'));
-        }
-        if ($request->filled('region_id')) {
-            $region = Region::query()->find($request->query('region_id'));
-            $labels[] = 'Región: '.($region?->name ?? $request->query('region_id'));
-        }
-        if ($request->filled('state_id')) {
-            $state = State::query()->find($request->query('state_id'));
-            $labels[] = 'Estado: '.($state?->name ?? $request->query('state_id'));
-        }
-        if ($request->filled('user_id')) {
-            $user = User::query()->find($request->query('user_id'));
-            $labels[] = 'Usuario: '.($user?->name ?? $request->query('user_id'));
-        }
-        if ($request->filled('expense_concept_id')) {
-            $concept = ExpenseConcept::query()->find($request->query('expense_concept_id'));
-            $labels[] = 'Concepto: '.($concept?->name ?? $request->query('expense_concept_id'));
-        }
-        if ($request->filled('delivery_method')) {
-            $method = DeliveryMethod::tryFrom($request->query('delivery_method'));
-            $labels[] = 'Forma de entrega: '.($method?->label() ?? $request->query('delivery_method'));
-        }
-        if ($request->filled('search')) {
-            $labels[] = 'Búsqueda: '.$request->query('search');
-        }
-
-        return $labels;
     }
 }

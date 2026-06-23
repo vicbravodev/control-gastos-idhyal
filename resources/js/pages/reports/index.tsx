@@ -1,690 +1,411 @@
-import { Head, Link, router } from '@inertiajs/react';
-import {
-    ArrowDownToLine,
-    Banknote,
-    CheckCircle2,
-    CircleDollarSign,
-    Clock,
-    FileBarChart,
-    Filter,
-    Receipt,
-    Search,
-    TrendingUp,
-    X,
-    XCircle,
-} from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ExpenseRequestController from '@/actions/App/Http/Controllers/ExpenseRequests/ExpenseRequestController';
+import { Head, router } from '@inertiajs/react';
+import { Info } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+
 import ExpenseAnalyticsController from '@/actions/App/Http/Controllers/Reports/ExpenseAnalyticsController';
-import { EmptyState } from '@/components/empty-state';
-import { PageHeader, StatCard } from '@/components/idhyal';
-import { PaginationNav } from '@/components/pagination-nav';
-import { StatusBadge, getStatusLabel } from '@/components/status-badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DatePicker } from '@/components/ui/date-picker';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import ReportTemplateController from '@/actions/App/Http/Controllers/Reports/ReportTemplateController';
+import { PageHeader } from '@/components/idhyal';
+import { TabsContent } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
-import { formatCentsMx } from '@/lib/money';
 import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
-type StatusBreakdown = {
-    status: string;
-    count: number;
-    total_cents: number;
-};
-
-type Summary = {
-    total_count: number;
-    total_requested_cents: number;
-    total_approved_cents: number;
-    total_paid_cents: number;
-    by_status: StatusBreakdown[];
-};
-
-type ListItem = {
-    id: number;
-    folio: string | null;
-    status: string;
-    requested_amount_cents: number;
-    approved_amount_cents: number | null;
-    paid_amount_cents: number;
-    concept_label: string;
-    concept_description: string | null;
-    delivery_method: string;
-    user_name: string;
-    user_role: string | null;
-    region_name: string | null;
-    state_name: string | null;
-    created_at: string | null;
-};
-
-type Paginator = {
-    data: ListItem[];
-    links: { url: string | null; label: string; active: boolean }[];
-    last_page: number;
-    current_page: number;
-};
-
-type FilterOption = { value: string; label: string };
-type StateOption = FilterOption & { region_id: string };
-
-type FilterOptions = {
-    statuses: FilterOption[];
-    regions: FilterOption[];
-    states: StateOption[];
-    users: FilterOption[];
-    expense_concepts: FilterOption[];
-    delivery_methods: FilterOption[];
-};
-
-type Filters = {
-    search: string;
-    status: string;
-    region_id: string;
-    state_id: string;
-    user_id: string;
-    expense_concept_id: string;
-    delivery_method: string;
-    date_from: string;
-    date_to: string;
-};
+import { ActiveFilterChips } from './_reports/active-filter-chips';
+import { AdvancedFiltersPanel } from './_reports/advanced-filters-panel';
+import { DetalleView } from './_reports/detalle-view';
+import { ExportDropdown } from './_reports/export-dropdown';
+import { KpiStrip } from './_reports/kpi-strip';
+import { PeriodToolbar } from './_reports/period-toolbar';
+import { PivoteView } from './_reports/pivote-view';
+import { ResumenView } from './_reports/resumen-view';
+import { SaveViewDialog } from './_reports/save-view-dialog';
+import { ScheduleDialog } from './_reports/schedule-dialog';
+import { StatusGrid } from './_reports/status-grid';
+import { TemplatesStrip } from './_reports/templates-strip';
+import type {
+    FilterKey,
+    FilterMap,
+    GroupBy,
+    ReportsPageProps,
+    ViewId,
+} from './_reports/types';
+import { ViewTabs } from './_reports/view-tabs';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
-    {
-        title: 'Reportes de gastos',
-        href: ExpenseAnalyticsController.index.url(),
-    },
+    { title: 'Reportes de gastos', href: ExpenseAnalyticsController.index.url() },
 ];
 
-const DELIVERY_METHOD_LABELS: Record<string, string> = {
-    cash: 'Efectivo',
-    transfer: 'Transferencia',
+type NavParams = Partial<{
+    [K in FilterKey]: string;
+}> & {
+    period?: string;
+    compare?: string;
+    view?: string;
+    group_by?: string;
+    template_id?: string;
 };
 
-const STATUS_CARD_CONFIG: Record<
-    string,
-    { icon: typeof TrendingUp; color: string }
-> = {
-    submitted: { icon: Clock, color: 'text-blue-600 dark:text-blue-400' },
-    approval_in_progress: {
-        icon: Clock,
-        color: 'text-amber-600 dark:text-amber-400',
-    },
-    approved: {
-        icon: CheckCircle2,
-        color: 'text-emerald-600 dark:text-emerald-400',
-    },
-    rejected: { icon: XCircle, color: 'text-red-600 dark:text-red-400' },
-    cancelled: { icon: XCircle, color: 'text-gray-500 dark:text-gray-400' },
-    pending_payment: {
-        icon: Clock,
-        color: 'text-orange-600 dark:text-orange-400',
-    },
-    paid: { icon: Banknote, color: 'text-emerald-600 dark:text-emerald-400' },
-    closed: { icon: CheckCircle2, color: 'text-gray-600 dark:text-gray-400' },
-};
-
-const DEBOUNCE_MS = 400;
-
-export default function ReportsIndex({
-    summary,
-    expenseRequests,
-    filters,
-    filter_options,
-}: {
-    summary: Summary;
-    expenseRequests: Paginator;
-    filters: Filters;
-    filter_options?: FilterOptions;
-}) {
-    const [search, setSearch] = useState(filters.search);
-    const [showFilters, setShowFilters] = useState(() =>
-        hasActiveFilters(filters),
-    );
-    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isFirstRender = useRef(true);
-
-    const filteredStates = useMemo(() => {
-        if (!filter_options || !filters.region_id) {
-            return filter_options?.states ?? [];
+function buildParams(filters: FilterMap, extra: NavParams = {}): NavParams {
+    const out: NavParams = {};
+    (Object.keys(filters) as FilterKey[]).forEach((k) => {
+        const v = filters[k];
+        if (v) {
+            out[k] = v;
         }
-
-        return filter_options.states.filter(
-            (s) => s.region_id === filters.region_id,
-        );
-    }, [filter_options, filters.region_id]);
-
-    useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-
-            return;
+    });
+    Object.entries(extra).forEach(([k, v]) => {
+        if (v == null || v === '') {
+            delete out[k as FilterKey];
+        } else {
+            (out as Record<string, string>)[k] = v;
         }
+    });
+    return out;
+}
 
-        if (debounceRef.current) {
-            clearTimeout(debounceRef.current);
+function exportHref(format: 'pdf' | 'csv', filters: FilterMap, period: string) {
+    const params = new URLSearchParams();
+    params.set('period', period);
+    (Object.keys(filters) as FilterKey[]).forEach((k) => {
+        if (filters[k]) {
+            params.set(k, filters[k]);
         }
+    });
 
-        debounceRef.current = setTimeout(() => {
-            applyFilter('search', search || undefined);
-        }, DEBOUNCE_MS);
+    return `/reports/expenses/export/${format}?${params.toString()}`;
+}
 
-        return () => {
-            if (debounceRef.current) {
-                clearTimeout(debounceRef.current);
-            }
-        };
-    }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+const FILTER_KEYS: FilterKey[] = [
+    'search',
+    'status',
+    'region_id',
+    'state_id',
+    'user_id',
+    'role_id',
+    'expense_concept_id',
+    'delivery_method',
+    'date_from',
+    'date_to',
+];
 
-    function applyFilter(key: string, value: string | undefined) {
-        const params: Record<string, string> = {};
-        const allKeys: (keyof Filters)[] = [
-            'search',
-            'status',
-            'region_id',
-            'state_id',
-            'user_id',
-            'expense_concept_id',
-            'delivery_method',
-            'date_from',
-            'date_to',
-        ];
+export default function ReportsIndex(props: ReportsPageProps) {
+    const {
+        kpis,
+        sparklines,
+        byStatus,
+        templates,
+        period,
+        period_presets,
+        view,
+        group_by,
+        compare,
+        filters,
+        active_template_id,
+        filter_options,
+        timeSeries,
+        byRegion,
+        byConcept,
+        byUser,
+        byDimension,
+        expenseRequests,
+    } = props;
 
-        for (const k of allKeys) {
-            if (k === key) {
-                if (value) {
-                    params[k] = value;
-                }
-            } else if (filters[k]) {
-                if (key === 'region_id' && k === 'state_id') {
-                    continue;
-                }
+    const [showFilters, setShowFilters] = useState(false);
+    const [columnsOpen, setColumnsOpen] = useState(false);
+    const [saveOpen, setSaveOpen] = useState(false);
+    const [scheduleOpen, setScheduleOpen] = useState(false);
 
-                params[k] = filters[k];
-            }
-        }
-
-        router.get(ExpenseAnalyticsController.index.url(), params, {
-            preserveState: true,
-            replace: true,
-            preserveScroll: true,
-            only: ['expenseRequests', 'summary', 'filters'],
-        });
-    }
-
-    function clearAllFilters() {
-        setSearch('');
-        router.get(
-            ExpenseAnalyticsController.index.url(),
-            {},
-            {
+    const navigate = useCallback(
+        (extra: NavParams = {}, opts: { reloadOnly?: string[] } = {}) => {
+            const params = buildParams(filters, extra);
+            router.get(ExpenseAnalyticsController.index.url(), params, {
                 preserveState: true,
-                replace: true,
                 preserveScroll: true,
-            },
-        );
-    }
+                replace: true,
+                ...(opts.reloadOnly ? { only: opts.reloadOnly } : {}),
+            });
+        },
+        [filters],
+    );
 
-    const handleToggleFilters = useCallback(() => {
+    const onFilterChange = useCallback(
+        (key: FilterKey, value: string) => {
+            const extra: NavParams = { [key]: value };
+            if (key === 'region_id') {
+                extra.state_id = '';
+            }
+            navigate(extra);
+        },
+        [navigate],
+    );
+
+    const onPeriodChange = useCallback(
+        (id: string) => {
+            const extra: NavParams = { period: id };
+            if (id !== 'custom') {
+                extra.date_from = '';
+                extra.date_to = '';
+            }
+            navigate(extra);
+        },
+        [navigate],
+    );
+
+    const onCustomRangeChange = useCallback(
+        (from: string, to: string) => {
+            navigate({ period: 'custom', date_from: from, date_to: to });
+        },
+        [navigate],
+    );
+
+    const onCompareChange = useCallback(
+        (next: boolean) => navigate({ compare: next ? '1' : '' }),
+        [navigate],
+    );
+
+    const onViewChange = useCallback(
+        (next: ViewId) => navigate({ view: next }),
+        [navigate],
+    );
+
+    const onGroupByChange = useCallback(
+        (next: GroupBy) => navigate({ group_by: next }),
+        [navigate],
+    );
+
+    const onClearAll = useCallback(() => {
+        const empties = FILTER_KEYS.reduce(
+            (acc, k) => ({ ...acc, [k]: '' }),
+            {} as NavParams,
+        );
+        navigate({ ...empties, template_id: '' });
+    }, [navigate]);
+
+    const onSelectTemplate = useCallback(
+        (id: number) => {
+            navigate({ template_id: String(id) });
+        },
+        [navigate],
+    );
+
+    const onClearTemplate = useCallback(() => navigate({ template_id: '' }), [navigate]);
+
+    const onDeleteTemplate = useCallback(
+        (id: number) => {
+            if (
+                !window.confirm(
+                    '¿Eliminar esta plantilla? Esta acción no se puede deshacer.',
+                )
+            ) {
+                return;
+            }
+
+            router.delete(
+                ReportTemplateController.destroy.url({ template: id }),
+                {
+                    preserveScroll: true,
+                },
+            );
+        },
+        [],
+    );
+
+    const toggleFiltersPanel = useCallback(() => {
         if (!filter_options && !showFilters) {
             router.reload({ only: ['filter_options'] });
         }
-
-        setShowFilters((prev) => !prev);
+        setShowFilters((v) => !v);
     }, [filter_options, showFilters]);
 
-    const exportUrl = useMemo(() => {
-        const params = new URLSearchParams();
-        const allKeys: (keyof Filters)[] = [
-            'search',
-            'status',
-            'region_id',
-            'state_id',
-            'user_id',
-            'expense_concept_id',
-            'delivery_method',
-            'date_from',
-            'date_to',
-        ];
+    const onRefresh = useCallback(() => router.reload(), []);
 
-        for (const k of allKeys) {
-            if (filters[k]) {
-                params.set(k, filters[k]);
+    const activeChips = useMemo(() => {
+        const chips: Array<{ key: FilterKey; label: string }> = [];
+        const labelFor = (key: FilterKey, value: string): string => {
+            if (!value) return '';
+            const find = (
+                opts: Array<{ value: string; label: string }> | undefined,
+            ): string | undefined => opts?.find((o) => o.value === value)?.label;
+
+            switch (key) {
+                case 'search':
+                    return `Búsqueda: “${value}”`;
+                case 'status':
+                    return `Estado: ${find(filter_options?.statuses) ?? value}`;
+                case 'region_id':
+                    return `Región: ${find(filter_options?.regions) ?? value}`;
+                case 'state_id':
+                    return `Estado (geo): ${find(filter_options?.states) ?? value}`;
+                case 'user_id':
+                    return `Usuario: ${find(filter_options?.users) ?? value}`;
+                case 'role_id':
+                    return `Rol: ${find(filter_options?.roles) ?? value}`;
+                case 'expense_concept_id':
+                    return `Concepto: ${find(filter_options?.expense_concepts) ?? value}`;
+                case 'delivery_method':
+                    return `Entrega: ${find(filter_options?.delivery_methods) ?? value}`;
+                case 'date_from':
+                    return `Desde: ${value}`;
+                case 'date_to':
+                    return `Hasta: ${value}`;
             }
-        }
+        };
 
-        const qs = params.toString();
+        FILTER_KEYS.forEach((k) => {
+            const label = labelFor(k, filters[k]);
+            if (label) chips.push({ key: k, label });
+        });
 
-        return (
-            ExpenseAnalyticsController.exportPdf.url() + (qs ? `?${qs}` : '')
-        );
-    }, [filters]);
+        return chips;
+    }, [filters, filter_options]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Reportes de gastos" />
-            <div className="flex animate-fade-in flex-col gap-5 p-4 sm:p-6">
+            <div className="flex animate-fade-in flex-col gap-4 p-4 sm:p-6">
                 <PageHeader
                     eyebrow="Reportes"
                     title="Reportes de gastos"
-                    subtitle="Métricas, filtros avanzados y exportación de solicitudes de gasto."
+                    subtitle="Constructor de reportes para contabilidad. Filtra, agrupa, compara periodos y exporta."
                     actions={
-                        <>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleToggleFilters}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setSaveOpen(true)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
                             >
-                                <Filter />
-                                Filtros
-                            </Button>
-                            <Button asChild>
-                                <a href={exportUrl}>
-                                    <ArrowDownToLine />
-                                    Exportar PDF
-                                </a>
-                            </Button>
-                        </>
+                                Guardar vista
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setScheduleOpen(true)}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+                            >
+                                Programar
+                            </button>
+                            <ExportDropdown
+                                pdfHref={exportHref('pdf', filters, period.id)}
+                                csvHref={exportHref('csv', filters, period.id)}
+                            />
+                        </div>
                     }
                 />
 
-                {/* ── KPI Summary Cards ──────────────────────────── */}
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    <StatCard
-                        label="Total solicitudes"
-                        value={summary.total_count.toLocaleString('es-MX')}
-                        icon={<Receipt className="size-5" />}
-                        iconTone="blue"
-                    />
-                    <StatCard
-                        label="Monto solicitado"
-                        value={formatCentsMx(summary.total_requested_cents)}
-                        icon={<CircleDollarSign className="size-5" />}
-                        iconTone="blue"
-                    />
-                    <StatCard
-                        label="Monto aprobado"
-                        value={formatCentsMx(summary.total_approved_cents)}
-                        icon={<CheckCircle2 className="size-5" />}
-                        iconTone="gold"
-                    />
-                    <StatCard
-                        label="Monto pagado"
-                        value={formatCentsMx(summary.total_paid_cents)}
-                        icon={<Banknote className="size-5" />}
-                        iconTone="gold"
-                    />
-                </div>
+                <TemplatesStrip
+                    templates={templates}
+                    activeId={active_template_id}
+                    onSelect={onSelectTemplate}
+                    onClear={onClearTemplate}
+                    onCreate={() => setSaveOpen(true)}
+                    onDelete={onDeleteTemplate}
+                />
 
-                {/* ── Status Breakdown Cards ─────────────────────── */}
-                {summary.by_status.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                        {summary.by_status.map((s) => {
-                            const cfg = STATUS_CARD_CONFIG[s.status];
-                            const Icon = cfg?.icon ?? TrendingUp;
-                            const color = cfg?.color ?? 'text-muted-foreground';
+                <PeriodToolbar
+                    period={period}
+                    presets={period_presets}
+                    compare={compare}
+                    activeFiltersCount={activeChips.length}
+                    customFrom={filters.date_from}
+                    customTo={filters.date_to}
+                    onPeriodChange={onPeriodChange}
+                    onCompareChange={onCompareChange}
+                    onCustomRangeChange={onCustomRangeChange}
+                    onToggleFilters={toggleFiltersPanel}
+                    onRefresh={onRefresh}
+                />
 
-                            return (
-                                <Card key={s.status} className="gap-2 py-3">
-                                    <CardContent className="flex items-center gap-3 px-4 py-0">
-                                        <Icon
-                                            className={`size-5 shrink-0 ${color}`}
-                                        />
-                                        <div className="min-w-0">
-                                            <p className="truncate text-xs text-muted-foreground">
-                                                {getStatusLabel(s.status)}
-                                            </p>
-                                            <p className="text-lg leading-tight font-semibold tabular-nums">
-                                                {s.count}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground tabular-nums">
-                                                {formatCentsMx(s.total_cents)}
-                                            </p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
+                <ActiveFilterChips
+                    chips={activeChips}
+                    onRemove={(k) => onFilterChange(k, '')}
+                    onClearAll={onClearAll}
+                />
 
-                {/* ── Advanced Filters ───────────────────────────── */}
                 {showFilters && (
-                    <Card className="animate-fade-in">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-base">
-                                    Filtros avanzados
-                                </CardTitle>
-                                {hasActiveFilters(filters) && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={clearAllFilters}
-                                    >
-                                        <X className="mr-1 size-4" />
-                                        Limpiar todo
-                                    </Button>
-                                )}
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                                <div className="space-y-1.5">
-                                    <Label>Buscar folio</Label>
-                                    <div className="relative">
-                                        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                                        <Input
-                                            value={search}
-                                            onChange={(e) =>
-                                                setSearch(e.target.value)
-                                            }
-                                            placeholder="Folio…"
-                                            className="pl-8"
-                                            autoComplete="off"
-                                            spellCheck={false}
-                                        />
-                                    </div>
-                                </div>
-
-                                <FilterSelect
-                                    label="Estado"
-                                    value={filters.status}
-                                    options={filter_options?.statuses ?? []}
-                                    onChange={(v) => applyFilter('status', v)}
-                                    allLabel="Todos los estados"
-                                />
-
-                                <FilterSelect
-                                    label="Región"
-                                    value={filters.region_id}
-                                    options={filter_options?.regions ?? []}
-                                    onChange={(v) =>
-                                        applyFilter('region_id', v)
-                                    }
-                                    allLabel="Todas las regiones"
-                                />
-
-                                <FilterSelect
-                                    label="Estado (geo)"
-                                    value={filters.state_id}
-                                    options={filteredStates}
-                                    onChange={(v) => applyFilter('state_id', v)}
-                                    allLabel="Todos los estados"
-                                />
-
-                                <FilterSelect
-                                    label="Usuario"
-                                    value={filters.user_id}
-                                    options={filter_options?.users ?? []}
-                                    onChange={(v) => applyFilter('user_id', v)}
-                                    allLabel="Todos los usuarios"
-                                />
-
-                                <FilterSelect
-                                    label="Concepto"
-                                    value={filters.expense_concept_id}
-                                    options={
-                                        filter_options?.expense_concepts ?? []
-                                    }
-                                    onChange={(v) =>
-                                        applyFilter('expense_concept_id', v)
-                                    }
-                                    allLabel="Todos los conceptos"
-                                />
-
-                                <FilterSelect
-                                    label="Forma de entrega"
-                                    value={filters.delivery_method}
-                                    options={
-                                        filter_options?.delivery_methods ?? []
-                                    }
-                                    onChange={(v) =>
-                                        applyFilter('delivery_method', v)
-                                    }
-                                    allLabel="Todas"
-                                />
-
-                                <div className="space-y-1.5">
-                                    <Label>Desde</Label>
-                                    <DatePicker
-                                        value={filters.date_from}
-                                        onChange={(v) =>
-                                            applyFilter(
-                                                'date_from',
-                                                v || undefined,
-                                            )
-                                        }
-                                        disableFuture
-                                    />
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label>Hasta</Label>
-                                    <DatePicker
-                                        value={filters.date_to}
-                                        onChange={(v) =>
-                                            applyFilter(
-                                                'date_to',
-                                                v || undefined,
-                                            )
-                                        }
-                                        disableFuture
-                                    />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <AdvancedFiltersPanel
+                        filters={filters}
+                        options={filter_options}
+                        onChange={onFilterChange}
+                        onReset={onClearAll}
+                        onClose={() => setShowFilters(false)}
+                    />
                 )}
 
-                {/* ── Data Table ─────────────────────────────────── */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Solicitudes de gasto</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {expenseRequests.data.length === 0 ? (
-                            <EmptyState
-                                icon={FileBarChart}
-                                title="Sin resultados"
-                                description="No se encontraron solicitudes con los filtros seleccionados."
+                <KpiStrip
+                    kpis={kpis}
+                    sparklines={sparklines}
+                    compare={compare}
+                />
+
+                <StatusGrid
+                    buckets={byStatus}
+                    activeStatus={filters.status}
+                    onSelect={(status) => onFilterChange('status', status)}
+                />
+
+                <ViewTabs
+                    view={view}
+                    onViewChange={onViewChange}
+                    groupBy={group_by}
+                    onGroupByChange={onGroupByChange}
+                    totalRows={
+                        view === 'detalle' ? expenseRequests?.total : undefined
+                    }
+                    onToggleColumns={() => setColumnsOpen((v) => !v)}
+                >
+                    <TabsContent value="resumen">
+                        <ResumenView
+                            timeSeries={timeSeries ?? []}
+                            byRegion={byRegion ?? []}
+                            byConcept={byConcept ?? []}
+                            byUser={byUser ?? []}
+                        />
+                    </TabsContent>
+                    <TabsContent value="pivote">
+                        <PivoteView
+                            rows={byDimension ?? []}
+                            groupBy={group_by}
+                        />
+                    </TabsContent>
+                    <TabsContent value="detalle">
+                        {expenseRequests ? (
+                            <DetalleView
+                                paginator={expenseRequests}
+                                columnsOpen={columnsOpen}
                             />
-                        ) : (
-                            <>
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Folio</TableHead>
-                                                <TableHead>Usuario</TableHead>
-                                                <TableHead>Región</TableHead>
-                                                <TableHead>
-                                                    Estado (geo)
-                                                </TableHead>
-                                                <TableHead>Concepto</TableHead>
-                                                <TableHead>Estado</TableHead>
-                                                <TableHead>Entrega</TableHead>
-                                                <TableHead className="text-right">
-                                                    Solicitado
-                                                </TableHead>
-                                                <TableHead className="text-right">
-                                                    Aprobado
-                                                </TableHead>
-                                                <TableHead className="text-right">
-                                                    Pagado
-                                                </TableHead>
-                                                <TableHead className="text-right">
-                                                    Fecha
-                                                </TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {expenseRequests.data.map((row) => (
-                                                <TableRow
-                                                    key={row.id}
-                                                    className="group"
-                                                >
-                                                    <TableCell>
-                                                        <Link
-                                                            href={ExpenseRequestController.show.url(
-                                                                row.id,
-                                                            )}
-                                                            className="font-medium text-primary underline-offset-4 group-hover:underline"
-                                                        >
-                                                            {row.folio ??
-                                                                `#${row.id}`}
-                                                        </Link>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <span className="text-sm">
-                                                            {row.user_name}
-                                                        </span>
-                                                        {row.user_role && (
-                                                            <span className="block text-xs text-muted-foreground">
-                                                                {row.user_role}
-                                                            </span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-sm">
-                                                        {row.region_name ?? '—'}
-                                                    </TableCell>
-                                                    <TableCell className="text-sm">
-                                                        {row.state_name ?? '—'}
-                                                    </TableCell>
-                                                    <TableCell className="max-w-[200px]">
-                                                        <span className="line-clamp-1 text-sm font-medium">
-                                                            {row.concept_label}
-                                                        </span>
-                                                        {row.concept_description && (
-                                                            <span className="line-clamp-1 text-xs text-muted-foreground">
-                                                                {
-                                                                    row.concept_description
-                                                                }
-                                                            </span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <StatusBadge
-                                                            status={row.status}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="text-sm">
-                                                        {DELIVERY_METHOD_LABELS[
-                                                            row.delivery_method
-                                                        ] ??
-                                                            row.delivery_method}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium tabular-nums">
-                                                        {formatCentsMx(
-                                                            row.requested_amount_cents,
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-right tabular-nums">
-                                                        {row.approved_amount_cents !==
-                                                        null
-                                                            ? formatCentsMx(
-                                                                  row.approved_amount_cents,
-                                                              )
-                                                            : '—'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right tabular-nums">
-                                                        {row.paid_amount_cents >
-                                                        0
-                                                            ? formatCentsMx(
-                                                                  row.paid_amount_cents,
-                                                              )
-                                                            : '—'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-sm whitespace-nowrap text-muted-foreground">
-                                                        {row.created_at
-                                                            ? new Date(
-                                                                  row.created_at,
-                                                              ).toLocaleDateString(
-                                                                  'es-MX',
-                                                                  {
-                                                                      day: '2-digit',
-                                                                      month: 'short',
-                                                                      year: 'numeric',
-                                                                  },
-                                                              )
-                                                            : '—'}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                                <PaginationNav
-                                    links={expenseRequests.links}
-                                    currentPage={expenseRequests.current_page}
-                                    lastPage={expenseRequests.last_page}
-                                />
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
+                        ) : null}
+                    </TabsContent>
+                </ViewTabs>
+
+                <div className="mt-2 flex items-center gap-3 rounded-md border border-dashed border-border bg-[var(--card-soft)] px-4 py-3 text-xs text-muted-foreground">
+                    <Info
+                        className="size-4 text-[var(--brand-blue-600)]"
+                        aria-hidden
+                    />
+                    <span className="flex-1">
+                        Los reportes se calculan en zona horaria{' '}
+                        <strong>America/Mexico_City</strong>. Los montos incluyen
+                        IVA cuando el concepto requiere CFDI. Última
+                        actualización al cargar la página.
+                    </span>
+                </div>
             </div>
+
+            <SaveViewDialog
+                open={saveOpen}
+                onOpenChange={setSaveOpen}
+                filters={filters}
+                period={period.id}
+                compare={compare}
+                view={view}
+                groupBy={group_by}
+            />
+            <ScheduleDialog
+                open={scheduleOpen}
+                onOpenChange={setScheduleOpen}
+                templates={templates}
+                defaultTemplateId={active_template_id}
+            />
         </AppLayout>
     );
-}
-
-/* ── Helper components ──────────────────────────── */
-
-function FilterSelect({
-    label,
-    value,
-    options,
-    onChange,
-    allLabel,
-}: {
-    label: string;
-    value: string;
-    options: FilterOption[];
-    onChange: (v: string | undefined) => void;
-    allLabel: string;
-}) {
-    return (
-        <div className="space-y-1.5">
-            <Label>{label}</Label>
-            <Select
-                value={value || '__all__'}
-                onValueChange={(v) => onChange(v === '__all__' ? undefined : v)}
-            >
-                <SelectTrigger>
-                    <SelectValue placeholder={label} />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="__all__">{allLabel}</SelectItem>
-                    {options.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </div>
-    );
-}
-
-function hasActiveFilters(filters: Filters): boolean {
-    return Object.values(filters).some((v) => v !== '');
 }
